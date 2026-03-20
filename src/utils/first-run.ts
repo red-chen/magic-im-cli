@@ -6,6 +6,28 @@ import { getAvailableLanguages } from './i18n.js';
 import { Language } from '../types/index.js';
 import { styles, createBox, createSuccessBox, showWelcomeBanner } from './ui.js';
 
+// Detect if running in non-interactive mode (CI, Agent, etc.)
+export const isNonInteractive = (): boolean => {
+  // Check for common CI/Agent environment variables
+  if (process.env.CI || process.env.NON_INTERACTIVE || process.env.AGENT_MODE) {
+    return true;
+  }
+  // Check if stdin is not a TTY
+  if (!process.stdin.isTTY) {
+    return true;
+  }
+  return false;
+};
+
+// Get default language from environment or use English
+const getDefaultLanguageFromEnv = (): Language => {
+  const envLang = process.env.MAGIC_IM_LANGUAGE;
+  if (envLang === 'zh' || envLang === 'en') {
+    return envLang;
+  }
+  return 'en';
+};
+
 export const isFirstRun = (): boolean => {
   // Check if config file exists and has language set
   const configPath = getConfigFilePath();
@@ -13,7 +35,21 @@ export const isFirstRun = (): boolean => {
 };
 
 export const promptForLanguage = async (): Promise<Language> => {
-  // Show beautiful welcome banner
+  // In non-interactive mode, use environment variable or default to English
+  if (isNonInteractive()) {
+    const defaultLang = getDefaultLanguageFromEnv();
+    setLanguage(defaultLang);
+    // Output simple message for Agent parsing
+    console.log(JSON.stringify({ 
+      event: 'language_set', 
+      language: defaultLang,
+      source: 'environment_variable',
+      configPath: getConfigFilePath(),
+    }));
+    return defaultLang;
+  }
+
+  // Show beautiful welcome banner (interactive mode only)
   showWelcomeBanner();
   
   const languages = getAvailableLanguages();

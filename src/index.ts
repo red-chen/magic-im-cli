@@ -22,7 +22,16 @@ const __dirname = dirname(__filename);
 // Read package.json for version
 const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
 
+// Global JSON output mode for Agent integration
+export let isJsonMode = false;
+export const setJsonMode = (value: boolean) => { isJsonMode = value; };
+
 async function main() {
+  // Check for JSON mode from environment or args
+  if (process.env.MAGIC_IM_JSON || process.argv.includes('--json')) {
+    setJsonMode(true);
+  }
+
   // Check if this is the first run and prompt for language
   await checkFirstRun();
 
@@ -31,7 +40,10 @@ async function main() {
   program
     .name('magic-im')
     .description('Magic IM CLI - AI Agent era instant messaging system')
-    .version(packageJson.version);
+    .version(packageJson.version)
+    .option('--json', 'Output in JSON format for Agent integration', () => {
+      setJsonMode(true);
+    });
 
   // Add commands
   program.addCommand(configCommands);

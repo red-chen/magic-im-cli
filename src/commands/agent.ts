@@ -14,6 +14,7 @@ import {
   divider,
 } from '../utils/ui.js';
 import { t } from '../utils/i18n.js';
+import { isJsonMode } from '../index.js';
 
 export const agentCommands = new Command('agent')
   .description('Agent management commands');
@@ -77,12 +78,20 @@ agentCommands
       spinner.stop();
 
       if (response.success) {
-        sectionHeader(t('agentList'));
-        console.log(createAgentTable(response.data));
-        divider();
+        if (isJsonMode) {
+          console.log(JSON.stringify({ success: true, data: response.data }));
+        } else {
+          sectionHeader(t('agentList'));
+          console.log(createAgentTable(response.data));
+          divider();
+        }
       }
     } catch (error) {
-      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to list agents')));
+      if (isJsonMode) {
+        console.log(JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Failed to list agents' }));
+      } else {
+        console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to list agents')));
+      }
       process.exit(1);
     }
   });
