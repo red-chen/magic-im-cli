@@ -62,81 +62,81 @@ describe('Interactive Mode', () => {
   });
 
   describe('Command Execution', () => {
-    it('should exit when "exit" command is entered', async () => {
+    it('should exit when "/exit" command is entered', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Goodbye'));
     });
 
-    it('should exit when "quit" command is entered', async () => {
+    it('should exit when "/quit" command is entered', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'quit' });
+        .mockResolvedValueOnce({ command: '/quit' });
 
       await startInteractiveMode(program);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Goodbye'));
     });
 
-    it('should exit when "q" command is entered', async () => {
+    it('should exit when "/q" command is entered', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'q' });
+        .mockResolvedValueOnce({ command: '/q' });
 
       await startInteractiveMode(program);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Goodbye'));
     });
 
-    it('should show help when "help" command is entered', async () => {
+    it('should show help when "/help" command is entered', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'help' })
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/help' })
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Available Commands'));
     });
 
-    it('should show help when "h" command is entered', async () => {
+    it('should show help when "/h" command is entered', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'h' })
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/h' })
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Available Commands'));
     });
 
-    it('should clear screen when "clear" command is entered', async () => {
+    it('should clear screen when "/clear" command is entered', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'clear' })
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/clear' })
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 
       expect(consoleClearSpy).toHaveBeenCalled();
     });
 
-    it('should clear screen when "cls" command is entered', async () => {
+    it('should clear screen when "/cls" command is entered', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'cls' })
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/cls' })
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 
@@ -148,7 +148,7 @@ describe('Interactive Mode', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ command: '   ' })
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 
@@ -166,8 +166,8 @@ describe('Interactive Mode', () => {
       program.addCommand(errorCommand);
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'error-cmd' })
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/error-cmd' })
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 
@@ -185,17 +185,17 @@ describe('Interactive Mode', () => {
         if (Array.isArray(questions) && questions[0]?.source) {
           autocompleteSource = questions[0].source;
         }
-        return Promise.resolve({ command: 'exit' });
+        return Promise.resolve({ command: '/exit' });
       });
 
       await startInteractiveMode(program);
 
       expect(autocompleteSource).toBeDefined();
 
-      // Test filtering
-      const results = autocompleteSource!({}, 'auth');
+      // Test filtering with slash prefix
+      const results = autocompleteSource!({}, '/auth');
       expect(results.length).toBeGreaterThan(0);
-      expect(results.some((r: any) => r.value.includes('auth'))).toBe(true);
+      expect(results.some((r: any) => r.value.includes('/auth'))).toBe(true);
     });
 
     it('should return all commands when input is empty', async () => {
@@ -206,7 +206,7 @@ describe('Interactive Mode', () => {
         if (Array.isArray(questions) && questions[0]?.source) {
           autocompleteSource = questions[0].source;
         }
-        return Promise.resolve({ command: 'exit' });
+        return Promise.resolve({ command: '/exit' });
       });
 
       await startInteractiveMode(program);
@@ -237,9 +237,9 @@ describe('Interactive Mode', () => {
       const { startInteractiveMode } = await import('./interactive.js');
 
       vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ command: 'help' })
-        .mockResolvedValueOnce({ command: 'clear' })
-        .mockResolvedValueOnce({ command: 'exit' });
+        .mockResolvedValueOnce({ command: '/help' })
+        .mockResolvedValueOnce({ command: '/clear' })
+        .mockResolvedValueOnce({ command: '/exit' });
 
       await startInteractiveMode(program);
 

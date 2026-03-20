@@ -8,38 +8,38 @@ import { t } from './i18n.js';
 // Register autocomplete prompt
 inquirer.registerPrompt('autocomplete', AutocompletePrompt);
 
-// Available commands for autocomplete
+// Available commands for autocomplete (with / prefix for interactive mode)
 const AVAILABLE_COMMANDS = [
-  { command: 'config', description: 'Configure CLI settings' },
-  { command: 'config show', description: 'Show current configuration' },
-  { command: 'config set', description: 'Set a configuration value' },
-  { command: 'auth', description: 'Authentication commands' },
-  { command: 'auth sign-up', description: 'Create a new account' },
-  { command: 'auth login', description: 'Login to your account' },
-  { command: 'auth logout', description: 'Logout from your account' },
-  { command: 'auth agent-token', description: 'Generate agent token' },
-  { command: 'agent', description: 'Agent management commands' },
-  { command: 'agent create', description: 'Create a new AI agent' },
-  { command: 'agent list', description: 'List all your agents' },
-  { command: 'agent update', description: 'Update an agent' },
-  { command: 'agent delete', description: 'Delete an agent' },
-  { command: 'friend', description: 'Friend management commands' },
-  { command: 'friend list', description: 'List all friends' },
-  { command: 'friend add', description: 'Send a friend request' },
-  { command: 'friend remove', description: 'Remove a friend' },
-  { command: 'friend requests', description: 'View pending friend requests' },
-  { command: 'friend accept', description: 'Accept a friend request' },
-  { command: 'friend reject', description: 'Reject a friend request' },
-  { command: 'search', description: 'Search for agents' },
-  { command: 'message', description: 'Message commands' },
-  { command: 'message list', description: 'List messages' },
-  { command: 'message send', description: 'Send a message' },
-  { command: 'conversation', description: 'Conversation commands' },
-  { command: 'conversation list', description: 'List conversations' },
-  { command: 'chat', description: 'Start an interactive chat session' },
-  { command: 'help', description: 'Show help' },
-  { command: 'exit', description: 'Exit interactive mode' },
-  { command: 'quit', description: 'Exit interactive mode' },
+  { command: '/config', description: 'Configure CLI settings', realCommand: 'config' },
+  { command: '/config show', description: 'Show current configuration', realCommand: 'config show' },
+  { command: '/config set', description: 'Set a configuration value', realCommand: 'config set' },
+  { command: '/auth', description: 'Authentication commands', realCommand: 'auth' },
+  { command: '/auth sign-up', description: 'Create a new account', realCommand: 'auth sign-up' },
+  { command: '/auth login', description: 'Login to your account', realCommand: 'auth login' },
+  { command: '/auth logout', description: 'Logout from your account', realCommand: 'auth logout' },
+  { command: '/auth agent-token', description: 'Generate agent token', realCommand: 'auth agent-token' },
+  { command: '/agent', description: 'Agent management commands', realCommand: 'agent' },
+  { command: '/agent create', description: 'Create a new AI agent', realCommand: 'agent create' },
+  { command: '/agent list', description: 'List all your agents', realCommand: 'agent list' },
+  { command: '/agent update', description: 'Update an agent', realCommand: 'agent update' },
+  { command: '/agent delete', description: 'Delete an agent', realCommand: 'agent delete' },
+  { command: '/friend', description: 'Friend management commands', realCommand: 'friend' },
+  { command: '/friend list', description: 'List all friends', realCommand: 'friend list' },
+  { command: '/friend add', description: 'Send a friend request', realCommand: 'friend add' },
+  { command: '/friend remove', description: 'Remove a friend', realCommand: 'friend remove' },
+  { command: '/friend requests', description: 'View pending friend requests', realCommand: 'friend requests' },
+  { command: '/friend accept', description: 'Accept a friend request', realCommand: 'friend accept' },
+  { command: '/friend reject', description: 'Reject a friend request', realCommand: 'friend reject' },
+  { command: '/search', description: 'Search for agents', realCommand: 'search' },
+  { command: '/message', description: 'Message commands', realCommand: 'message' },
+  { command: '/message list', description: 'List messages', realCommand: 'message list' },
+  { command: '/message send', description: 'Send a message', realCommand: 'message send' },
+  { command: '/conversation', description: 'Conversation commands', realCommand: 'conversation' },
+  { command: '/conversation list', description: 'List conversations', realCommand: 'conversation list' },
+  { command: '/chat', description: 'Start an interactive chat session', realCommand: 'chat' },
+  { command: '/help', description: 'Show help', realCommand: 'help' },
+  { command: '/exit', description: 'Exit interactive mode', realCommand: 'exit' },
+  { command: '/quit', description: 'Exit interactive mode', realCommand: 'quit' },
 ];
 
 /**
@@ -77,13 +77,13 @@ function showInteractiveHelp(): void {
   console.log(styles.bold('📚 Available Commands:\n'));
 
   const categories = [
-    { name: 'Configuration', commands: ['config', 'config show', 'config set'] },
-    { name: 'Authentication', commands: ['auth sign-up', 'auth login', 'auth logout', 'auth agent-token'] },
-    { name: 'Agent Management', commands: ['agent create', 'agent list', 'agent update', 'agent delete'] },
-    { name: 'Friends', commands: ['friend list', 'friend add', 'friend remove', 'friend requests', 'friend accept', 'friend reject'] },
-    { name: 'Messaging', commands: ['message list', 'message send', 'conversation list', 'chat'] },
-    { name: 'Search', commands: ['search'] },
-    { name: 'Interactive Mode', commands: ['help', 'exit', 'quit'] },
+    { name: 'Configuration', commands: ['/config', '/config show', '/config set'] },
+    { name: 'Authentication', commands: ['/auth sign-up', '/auth login', '/auth logout', '/auth agent-token'] },
+    { name: 'Agent Management', commands: ['/agent create', '/agent list', '/agent update', '/agent delete'] },
+    { name: 'Friends', commands: ['/friend list', '/friend add', '/friend remove', '/friend requests', '/friend accept', '/friend reject'] },
+    { name: 'Messaging', commands: ['/message list', '/message send', '/conversation list', '/chat'] },
+    { name: 'Search', commands: ['/search'] },
+    { name: 'Interactive Mode', commands: ['/help', '/exit', '/quit'] },
   ];
 
   categories.forEach(category => {
@@ -91,7 +91,7 @@ function showInteractiveHelp(): void {
     category.commands.forEach(cmd => {
       const cmdInfo = AVAILABLE_COMMANDS.find(c => c.command === cmd);
       if (cmdInfo) {
-        console.log(`  ${styles.code(cmd.padEnd(20))} ${chalk.gray(cmdInfo.description)}`);
+        console.log(`  ${styles.code(cmd.padEnd(22))} ${chalk.gray(cmdInfo.description)}`);
       }
     });
     console.log('');
@@ -111,27 +111,30 @@ async function executeCommand(program: Command, input: string): Promise<boolean>
     return true;
   }
 
-  // Handle exit commands
-  if (trimmedInput === 'exit' || trimmedInput === 'quit' || trimmedInput === 'q') {
+  // Handle exit commands (with / prefix)
+  if (trimmedInput === '/exit' || trimmedInput === '/quit' || trimmedInput === '/q') {
     console.log(chalk.green('\n👋 Goodbye!\n'));
     return false;
   }
 
-  // Handle help command
-  if (trimmedInput === 'help' || trimmedInput === 'h') {
+  // Handle help command (with / prefix)
+  if (trimmedInput === '/help' || trimmedInput === '/h') {
     showInteractiveHelp();
     return true;
   }
 
-  // Handle clear command
-  if (trimmedInput === 'clear' || trimmedInput === 'cls') {
+  // Handle clear command (with / prefix)
+  if (trimmedInput === '/clear' || trimmedInput === '/cls') {
     console.clear();
     showWelcomeBanner();
     return true;
   }
 
+  // Remove the leading slash and convert to real command
+  const commandWithoutSlash = trimmedInput.startsWith('/') ? trimmedInput.slice(1) : trimmedInput;
+
   // Parse and execute the command
-  const args = trimmedInput.split(/\s+/);
+  const args = commandWithoutSlash.split(/\s+/);
 
   try {
     // Execute the command using the original program's action handlers
@@ -163,7 +166,7 @@ function createAutocompleteSource() {
     );
     return matches.map(m => ({
       name: `${m.command} ${chalk.gray('- ' + m.description)}`,
-      value: m.command,
+      value: m.command, // Return the /command format
       short: m.command,
     }));
   };
@@ -177,7 +180,7 @@ export async function startInteractiveMode(program: Command): Promise<void> {
   showWelcomeBanner();
 
   console.log(chalk.cyan('🚀 Interactive Mode Started\n'));
-  console.log(chalk.gray('Type "help" for available commands, "exit" to quit.\n'));
+  console.log(chalk.gray('Type "/help" for available commands, "/exit" to quit.\n'));
   divider();
   console.log('');
 

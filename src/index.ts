@@ -75,20 +75,21 @@ async function main() {
     divider();
   });
 
-  // Parse arguments
-  program.parse();
-
   // Determine mode: if no command provided and not in non-interactive mode, start interactive mode
-  const parsedOptions = program.opts();
-  const shouldRunInteractive = !hasCommand && !hasNoInteractiveFlag && !parsedOptions.noInteractive;
+  const shouldRunInteractive = !hasCommand && !hasNoInteractiveFlag;
 
   if (shouldRunInteractive) {
-    // Start interactive mode
+    // Start interactive mode directly without parsing
     await startInteractiveMode(program);
-  } else if (!hasCommand) {
+  } else {
+    // Parse arguments for non-interactive mode
+    program.parse();
+
     // Show help if no command provided in non-interactive mode
-    showWelcomeBanner();
-    program.outputHelp();
+    if (!hasCommand) {
+      showWelcomeBanner();
+      program.outputHelp();
+    }
   }
 }
 
