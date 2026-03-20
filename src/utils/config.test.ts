@@ -1,98 +1,81 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import Conf from 'conf';
-import {
-  getConfig,
-  setConfig,
-  getToken,
-  setToken,
-  clearToken,
-  getAgentToken,
-  setAgentToken,
-  clearAgentToken,
-  getApiUrl,
-} from './config.js';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { existsSync, rmSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 
-// Create a mock store that gets reset for each test
-let mockStore: Record<string, string> = {};
+// Use a test config directory
+const TEST_CONFIG_DIR = join(homedir(), '.magic-im');
+const TEST_CONFIG_FILE = join(TEST_CONFIG_DIR, 'settings.json');
 
-// Mock Conf
-vi.mock('conf', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    get: vi.fn((key: string) => mockStore[key]),
-    set: vi.fn((key: string, value: string) => {
-      mockStore[key] = value;
-    }),
-    delete: vi.fn((key: string) => {
-      delete mockStore[key];
-    }),
-  })),
-}));
+// Clean up function
+const cleanup = () => {
+  if (existsSync(TEST_CONFIG_FILE)) {
+    rmSync(TEST_CONFIG_FILE);
+  }
+};
 
 describe('config', () => {
   beforeEach(() => {
-    mockStore = {}; // Reset store before each test
-    vi.clearAllMocks();
+    cleanup();
+    // Reset modules to get fresh config
+    vi.resetModules();
   });
 
-  describe('getConfig', () => {
-    it('should return default config when no values are set', () => {
+  afterAll(() => {
+    cleanup();
+  });
+
+  describe('basic config operations', () => {
+    it('should return default config when no file exists', async () => {
+      const { getConfig } = await import('./config.js');
       const config = getConfig();
       expect(config.apiUrl).toBe('http://localhost:3000');
       expect(config.token).toBeUndefined();
       expect(config.agentToken).toBeUndefined();
+      expect(config.language).toBeUndefined();
     });
-  });
 
-  describe('setConfig', () => {
-    it('should set apiUrl config', () => {
+    it('should set and get apiUrl', async () => {
+      const { setConfig, getApiUrl } = await import('./config.js');
       setConfig('apiUrl', 'https://api.example.com');
-      const config = getConfig();
-      expect(config.apiUrl).toBe('https://api.example.com');
+      expect(getApiUrl()).toBe('https://api.example.com');
     });
 
-    it('should set token config', () => {
-      setConfig('token', 'test-token');
+    it('should set and get token', async () => {
+      const { setToken, getToken } = await import('./config.js');
+      setToken('test-token');
       expect(getToken()).toBe('test-token');
     });
 
-    it('should set agentToken config', () => {
-      setConfig('agentToken', 'test-agent-token');
-      expect(getAgentToken()).toBe('test-agent-token');
-    });
-  });
-
-  describe('token management', () => {
-    it('should set and get token', () => {
-      setToken('my-token');
-      expect(getToken()).toBe('my-token');
-    });
-
-    it('should clear token', () => {
-      setToken('my-token');
+    it('should clear token', async () => {
+      const { setToken, clearToken, getToken } = await import('./config.js');
+      setToken('test-token');
       clearToken();
       expect(getToken()).toBeUndefined();
     });
 
-    it('should set and get agent token', () => {
-      setAgentToken('my-agent-token');
-      expect(getAgentToken()).toBe('my-agent-token');
+    it('should set and get agent token', async () => {
+      const { setAgentToken, getAgentToken } = await import('./config.js');
+      setAgentToken('agent-token');
+      expect(getAgentToken()).toBe('agent-token');
     });
 
-    it('should clear agent token', () => {
-      setAgentToken('my-agent-token');
+    it('should clear agent token', async () => {
+      const { setAgentToken, clearAgentToken, getAgentToken } = await import('./config.js');
+      setAgentToken('agent-token');
       clearAgentToken();
       expect(getAgentToken()).toBeUndefined();
     });
-  });
 
-  describe('getApiUrl', () => {
-    it('should return default API URL', () => {
-      expect(getApiUrl()).toBe('http://localhost:3000');
+    it('should set and get language', async () => {
+      const { setLanguage, getLanguage } = await import('./config.js');
+      setLanguage('zh');
+      expect(getLanguage()).toBe('zh');
     });
 
-    it('should return custom API URL when set', () => {
-      setConfig('apiUrl', 'https://custom-api.example.com');
-      expect(getApiUrl()).toBe('https://custom-api.example.com');
+    it('should return default language as en', async () => {
+      const { getLanguage } = await import('./config.js');
+      expect(getLanguage()).toBe('en');
     });
   });
 });

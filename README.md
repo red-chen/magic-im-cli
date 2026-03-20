@@ -16,12 +16,19 @@ npx magic-im-cli <command>
 
 ## Quick Start
 
+When you first run the CLI, you'll be prompted to select your preferred language (中文/English).
+
 1. Configure the API URL (optional, defaults to http://localhost:3000):
 ```bash
 magic-im config set api-url https://api.example.com
 ```
 
-2. Sign up for a new account:
+2. Change language anytime:
+```bash
+magic-im config language
+```
+
+3. Sign up for a new account:
 ```bash
 magic-im auth sign-up
 ```
@@ -54,6 +61,12 @@ magic-im config get api-url
 
 # Set config value
 magic-im config set api-url https://api.example.com
+
+# Change language
+magic-im config language
+
+# Set language directly
+magic-im config set language zh  # or 'en'
 ```
 
 ### Authentication

@@ -1,51 +1,110 @@
-import Conf from 'conf';
-import { Config } from '../types/index.js';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
+import { Config, Language } from '../types/index.js';
 
-const config = new Conf<Config>({
-  projectName: 'magic-im-cli',
-  defaults: {
-    apiUrl: 'http://localhost:3000',
-  },
-});
+// Config file path: ~/.magic-im/settings.json
+const CONFIG_DIR = join(homedir(), '.magic-im');
+const CONFIG_FILE = join(CONFIG_DIR, 'settings.json');
+
+// Default config
+const defaultConfig: Config = {
+  apiUrl: 'http://localhost:3000',
+};
+
+// Ensure config directory exists
+const ensureConfigDir = (): void => {
+  if (!existsSync(CONFIG_DIR)) {
+    mkdirSync(CONFIG_DIR, { recursive: true });
+  }
+};
+
+// Read config from file
+const readConfig = (): Config => {
+  try {
+    if (existsSync(CONFIG_FILE)) {
+      const data = readFileSync(CONFIG_FILE, 'utf-8');
+      return { ...defaultConfig, ...JSON.parse(data) };
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return { ...defaultConfig };
+};
+
+// Write config to file
+const writeConfig = (config: Config): void => {
+  ensureConfigDir();
+  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+};
+
+// In-memory cache
+let configCache: Config | null = null;
+
+const getConfigInternal = (): Config => {
+  if (!configCache) {
+    configCache = readConfig();
+  }
+  return configCache;
+};
+
+const setConfigValue = <K extends keyof Config>(key: K, value: Config[K]): void => {
+  const config = getConfigInternal();
+  config[key] = value;
+  configCache = config;
+  writeConfig(config);
+};
 
 export const getConfig = (): Config => {
-  return {
-    apiUrl: config.get('apiUrl') || 'http://localhost:3000',
-    token: config.get('token'),
-    agentToken: config.get('agentToken'),
-  };
+  return getConfigInternal();
+};
+
+export const getLanguage = (): Language => {
+  const config = getConfigInternal();
+  return config.language || 'en';
+};
+
+export const getDefaultLanguage = (): Language => 'en';
+
+export const setLanguage = (lang: Language): void => {
+  setConfigValue('language', lang);
 };
 
 export const setConfig = (key: keyof Config, value: string): void => {
-  config.set(key, value);
+  setConfigValue(key, value);
 };
 
 export const getToken = (): string | undefined => {
-  return config.get('token');
+  const config = getConfigInternal();
+  return config.token;
 };
 
 export const setToken = (token: string): void => {
-  config.set('token', token);
+  setConfigValue('token', token);
 };
 
 export const clearToken = (): void => {
-  config.delete('token');
+  setConfigValue('token', undefined);
 };
 
 export const getAgentToken = (): string | undefined => {
-  return config.get('agentToken');
+  const config = getConfigInternal();
+  return config.agentToken;
 };
 
 export const setAgentToken = (token: string): void => {
-  config.set('agentToken', token);
+  setConfigValue('agentToken', token);
 };
 
 export const clearAgentToken = (): void => {
-  config.delete('agentToken');
+  setConfigValue('agentToken', undefined);
 };
 
 export const getApiUrl = (): string => {
-  return config.get('apiUrl') || 'http://localhost:3000';
+  const config = getConfigInternal();
+  return config.apiUrl || 'http://localhost:3000';
 };
 
-export default config;
+export const getConfigFilePath = (): string => {
+  return CONFIG_FILE;
+};

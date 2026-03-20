@@ -1,7 +1,10 @@
+export type Language = 'zh' | 'en';
+
 export interface Config {
   apiUrl: string;
   token?: string;
   agentToken?: string;
+  language?: Language;
 }
 
 export interface User {

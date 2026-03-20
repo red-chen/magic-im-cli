@@ -1,9 +1,19 @@
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import ora from 'ora';
+import chalk from 'chalk';
 import { apiClient } from '../utils/api.js';
-import { formatSuccess, formatError, formatAgent, formatAgentList } from '../utils/format.js';
 import { Agent } from '../types/index.js';
+import { 
+  styles, 
+  createBox, 
+  createSuccessBox, 
+  createErrorBox,
+  createAgentTable,
+  sectionHeader,
+  divider,
+} from '../utils/ui.js';
+import { t } from '../utils/i18n.js';
 
 export const agentCommands = new Command('agent')
   .description('Agent management commands');
@@ -46,11 +56,12 @@ agentCommands
       spinner.stop();
 
       if (response.success) {
-        console.log(formatSuccess('Agent created successfully!'));
-        console.log(formatAgent(response.data));
+        sectionHeader(t('agentCreated'));
+        console.log(createAgentTable([response.data]));
+        divider();
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to create agent'));
+      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to create agent')));
       process.exit(1);
     }
   });
@@ -61,15 +72,17 @@ agentCommands
   .description('List all your agents')
   .action(async () => {
     try {
-      const spinner = ora('Loading agents...').start();
+      const spinner = ora({ text: chalk.cyan(t('agentList')), spinner: 'dots' }).start();
       const response = await apiClient.get<Agent[]>('/agents');
       spinner.stop();
 
       if (response.success) {
-        console.log(formatAgentList(response.data));
+        sectionHeader(t('agentList'));
+        console.log(createAgentTable(response.data));
+        divider();
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to list agents'));
+      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to list agents')));
       process.exit(1);
     }
   });
@@ -80,15 +93,17 @@ agentCommands
   .description('Get agent details')
   .action(async (agentId: string) => {
     try {
-      const spinner = ora('Loading agent...').start();
+      const spinner = ora({ text: chalk.cyan('Loading agent...'), spinner: 'dots' }).start();
       const response = await apiClient.get<Agent>(`/agents/${agentId}`);
       spinner.stop();
 
       if (response.success) {
-        console.log(formatAgent(response.data));
+        sectionHeader('Agent Details');
+        console.log(createAgentTable([response.data]));
+        divider();
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to get agent'));
+      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to get agent')));
       process.exit(1);
     }
   });
@@ -118,20 +133,21 @@ agentCommands
       }
 
       if (Object.keys(updates).length === 0) {
-        console.error(formatError('No updates provided'));
+        console.log(createErrorBox(styles.error('No updates provided')));
         process.exit(1);
       }
 
-      const spinner = ora('Updating agent...').start();
+      const spinner = ora({ text: chalk.cyan('Updating agent...'), spinner: 'dots' }).start();
       const response = await apiClient.patch<Agent>(`/agents/${agentId}`, updates);
       spinner.stop();
 
       if (response.success) {
-        console.log(formatSuccess('Agent updated successfully!'));
-        console.log(formatAgent(response.data));
+        sectionHeader(t('agentUpdated'));
+        console.log(createAgentTable([response.data]));
+        divider();
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to update agent'));
+      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to update agent')));
       process.exit(1);
     }
   });
@@ -147,23 +163,23 @@ agentCommands
         const answer = await inquirer.prompt([{
           type: 'confirm',
           name: 'confirm',
-          message: `Are you sure you want to delete agent ${agentId}?`,
+          message: chalk.yellow(`⚠ Are you sure you want to delete agent ${agentId}?`),
           default: false,
         }]);
 
         if (!answer.confirm) {
-          console.log('Deletion cancelled');
+          console.log(styles.dim('Deletion cancelled'));
           return;
         }
       }
 
-      const spinner = ora('Deleting agent...').start();
+      const spinner = ora({ text: chalk.cyan('Deleting agent...'), spinner: 'dots' }).start();
       await apiClient.delete(`/agents/${agentId}`);
       spinner.stop();
 
-      console.log(formatSuccess('Agent deleted successfully!'));
+      console.log(createSuccessBox(styles.success(t('agentDeleted'))));
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to delete agent'));
+      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to delete agent')));
       process.exit(1);
     }
   });
