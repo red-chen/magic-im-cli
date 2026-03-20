@@ -15,6 +15,7 @@ import messageCommands, { conversationCommands } from './commands/message.js';
 import chatCommand from './commands/chat.js';
 import { checkFirstRun } from './utils/first-run.js';
 import { showWelcomeBanner, divider, styles } from './utils/ui.js';
+import { startInteractiveMode } from './utils/interactive.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,6 +33,10 @@ async function main() {
     setJsonMode(true);
   }
 
+  // Check for non-interactive mode
+  const hasNoInteractiveFlag = process.argv.includes('--no-interactive') || process.argv.includes('-n');
+  const hasCommand = process.argv.slice(2).some(arg => !arg.startsWith('-'));
+
   // Check if this is the first run and prompt for language
   await checkFirstRun();
 
@@ -43,7 +48,8 @@ async function main() {
     .version(packageJson.version)
     .option('--json', 'Output in JSON format for Agent integration', () => {
       setJsonMode(true);
-    });
+    })
+    .option('-n, --no-interactive', 'Run in non-interactive mode (command mode)');
 
   // Add commands
   program.addCommand(configCommands);
@@ -72,8 +78,15 @@ async function main() {
   // Parse arguments
   program.parse();
 
-  // Show help if no command provided
-  if (!process.argv.slice(2).length) {
+  // Determine mode: if no command provided and not in non-interactive mode, start interactive mode
+  const parsedOptions = program.opts();
+  const shouldRunInteractive = !hasCommand && !hasNoInteractiveFlag && !parsedOptions.noInteractive;
+
+  if (shouldRunInteractive) {
+    // Start interactive mode
+    await startInteractiveMode(program);
+  } else if (!hasCommand) {
+    // Show help if no command provided in non-interactive mode
     showWelcomeBanner();
     program.outputHelp();
   }
