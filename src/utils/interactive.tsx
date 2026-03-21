@@ -1,23 +1,81 @@
 import { render, useKeyboard, useTerminalDimensions } from '@opentui/solid';
-import { createSignal, For, Show, onMount } from 'solid-js';
+import { createSignal, For, Show, onMount, createEffect, createMemo } from 'solid-js';
 import type { KeyEvent, TextareaRenderable } from '@opentui/core';
 import { styles } from './ui.js';
 
-// ─── Theme (opencode dark) ────────────────────────────────────────────────────
-const theme = {
-  background:        '#0a0a0a',
-  backgroundPanel:   '#111111',
-  backgroundElement: '#1a1a1a',
-  text:              '#eeeeee',
-  textMuted:         '#636e72',
-  border:            '#2d3436',
-  borderActive:      '#4a5568',
-  primary:           '#74b9ff',
-  success:           '#55efc4',
-  warning:           '#fdcb6e',
-  error:             '#ff7675',
-  info:              '#74b9ff',
+// ─── Theme definitions (opencode) ─────────────────────────────────────────────
+// Based on opencode/packages/ui/src/theme/themes/opencode.json
+const themes = {
+  // Dark theme (default)
+  dark: {
+    background:        '#0a0a0a',
+    backgroundPanel:   '#111111',
+    backgroundElement: '#1a1a1a',
+    backgroundWeak:    '#141414',
+    text:              '#eeeeee',
+    textStrong:        '#ffffff',
+    textWeak:          '#808080',
+    textMuted:         '#636e72',
+    border:            '#2a2a2a',
+    borderWeak:        '#1f1f1f',
+    borderActive:      '#4a4a4a',
+    borderInteractive: '#56b6c2',
+    primary:           '#fab283',
+    accent:            '#9d7cd8',
+    success:           '#7fd88f',
+    warning:           '#f5a742',
+    error:             '#e06c75',
+    info:              '#56b6c2',
+    interactive:       '#56b6c2',
+    interactiveHover:  '#6bc9d5',
+  },
+  // Light theme
+  light: {
+    background:        '#ffffff',
+    backgroundPanel:   '#f5f5f5',
+    backgroundElement: '#f0f0f0',
+    backgroundWeak:    '#fafafa',
+    text:              '#1a1a1a',
+    textStrong:        '#000000',
+    textWeak:          '#8a8a8a',
+    textMuted:         '#a0a0a0',
+    border:            '#e0e0e0',
+    borderWeak:        '#f0f0f0',
+    borderActive:      '#c0c0c0',
+    borderInteractive: '#318795',
+    primary:           '#3b7dd8',
+    accent:            '#d68c27',
+    success:           '#3d9a57',
+    warning:           '#d68c27',
+    error:             '#d1383d',
+    info:              '#318795',
+    interactive:       '#3b7dd8',
+    interactiveHover:  '#4a8ce8',
+  },
 };
+
+// Detect system color scheme preference
+function getSystemTheme(): 'light' | 'dark' {
+  // Check environment variable first (for CLI/config override)
+  if (process.env.MAGIC_IM_THEME === 'light') return 'light';
+  if (process.env.MAGIC_IM_THEME === 'dark') return 'dark';
+  
+  // Check system preference via environment
+  // Note: In terminal, we can't access matchMedia, but we can check COLORFGBG
+  const colorFgBg = process.env.COLORFGBG;
+  if (colorFgBg) {
+    // COLORFGBG format is "fg;bg" or "fg;bg;0"
+    const bg = parseInt(colorFgBg.split(';')[1] ?? '0', 10);
+    // Light background colors are typically 7-15 (white/light colors)
+    if (bg >= 7 && bg <= 15) return 'light';
+  }
+  
+  // Default to dark for terminal apps
+  return 'dark';
+}
+
+// Theme type
+type Theme = typeof themes.dark;
 
 // ─── Available commands ───────────────────────────────────────────────────────
 const AVAILABLE_COMMANDS = [
@@ -48,6 +106,7 @@ const AVAILABLE_COMMANDS = [
   { command: '/conversation list',     description: 'List conversations' },
   { command: '/conversation messages', description: 'Get messages in a conversation' },
   { command: '/chat',                  description: 'Start an interactive chat session' },
+  { command: '/theme',                 description: 'Toggle light/dark theme' },
   { command: '/help',                  description: 'Show available commands' },
   { command: '/clear',                 description: 'Clear the screen' },
   { command: '/exit',                  description: 'Exit interactive mode' },
@@ -142,75 +201,80 @@ interface OutputEntry {
 }
 
 // ─── Sidebar panel ────────────────────────────────────────────────────────────
-function Sidebar(props: { commandCount: () => number }) {
+function Sidebar(props: { commandCount: () => number; theme: Theme }) {
+  const t = () => props.theme;
   return (
     <box
-      backgroundColor={theme.backgroundPanel}
-      width={42}
+      backgroundColor={t().backgroundPanel}
+      width={38}
       height="100%"
-      paddingTop={1}
+      paddingTop={2}
       paddingBottom={1}
-      paddingLeft={2}
+      paddingLeft={3}
       paddingRight={2}
+      border={['left']}
+      borderColor={t().border}
     >
       <scrollbox flexGrow={1}>
-        <box flexShrink={0} gap={1} paddingRight={1}>
+        <box flexShrink={0} gap={2} paddingRight={1}>
           {/* Session title */}
-          <box paddingRight={1}>
-            <text fg={theme.text}>
-              <b>Magic IM</b>
+          <box paddingRight={1} marginBottom={1}>
+            <text fg={t().primary}>
+              <b>◆ Magic IM</b>
             </text>
           </box>
 
           {/* Context info */}
-          <box>
-            <text fg={theme.text}>
+          <box gap={1} marginBottom={2}>
+            <text fg={t().textStrong}>
               <b>Commands</b>
             </text>
-            <text fg={theme.textMuted}>{props.commandCount()} available</text>
-            <text fg={theme.textMuted}>Tab to autocomplete</text>
+            <text fg={t().textWeak}>{props.commandCount()} available</text>
+            <text fg={t().textMuted}>Tab to autocomplete</text>
           </box>
 
           {/* LSP-style status */}
-          <box>
-            <text fg={theme.text}><b>Server</b></text>
-            <text fg={theme.textMuted}>magic-im v1.0.0</text>
-            <text fg={theme.textMuted}>http://localhost:3000</text>
+          <box gap={1}>
+            <text fg={t().textStrong}><b>Server</b></text>
+            <text fg={t().textWeak}>magic-im v1.0.0</text>
+            <text fg={t().textMuted}>http://localhost:3000</text>
           </box>
         </box>
       </scrollbox>
 
       {/* Bottom: Getting started card */}
-      <box flexShrink={0} gap={1} paddingTop={1}>
+      <box flexShrink={0} gap={2} paddingTop={2}>
         <box
-          backgroundColor={theme.backgroundElement}
-          paddingTop={1}
-          paddingBottom={1}
+          backgroundColor={t().backgroundElement}
+          paddingTop={2}
+          paddingBottom={2}
           paddingLeft={2}
           paddingRight={2}
           flexDirection="row"
           gap={1}
+          border={['left']}
+          borderColor={t().primary}
         >
-          <text flexShrink={0} fg={theme.text}>◆</text>
+          <text flexShrink={0} fg={t().primary}>◆</text>
           <box flexGrow={1} gap={1}>
             <box flexDirection="row" justifyContent="space-between">
-              <text fg={theme.text}><b>Getting started</b></text>
+              <text fg={t().textStrong}><b>Getting started</b></text>
             </box>
-            <text fg={theme.textMuted}>Use /auth sign-in to authenticate.</text>
-            <text fg={theme.textMuted}>
+            <text fg={t().textWeak}>Use /auth sign-in to authenticate.</text>
+            <text fg={t().textMuted}>
               Then /agent list or /chat to get started.
             </text>
-            <box flexDirection="row" gap={1} justifyContent="space-between">
-              <text fg={theme.text}>Sign in</text>
-              <text fg={theme.textMuted}>/auth sign-in</text>
+            <box flexDirection="row" gap={1} justifyContent="space-between" marginTop={1}>
+              <text fg={t().interactive}>Sign in</text>
+              <text fg={t().textMuted}>/auth sign-in</text>
             </box>
           </box>
         </box>
 
         {/* Version line */}
-        <text fg={theme.textMuted}>
-          <span style={{ fg: theme.success }}>•</span> <b>Magic</b>
-          <span style={{ fg: theme.text }}>
+        <text fg={t().textWeak}>
+          <span style={{ fg: t().success }}>●</span> <b>Magic</b>
+          <span style={{ fg: t().text }}>
             <b>IM</b>
           </span>{' '}
           <span>1.0.0</span>
@@ -221,22 +285,28 @@ function Sidebar(props: { commandCount: () => number }) {
 }
 
 // ─── Footer keybind bar ───────────────────────────────────────────────────────
-function FooterBar() {
+function FooterBar(props: { theme: Theme }) {
+  const t = () => props.theme;
   return (
     <box
       flexDirection="row"
       justifyContent="space-between"
       flexShrink={0}
-      paddingLeft={2}
-      paddingRight={2}
+      paddingLeft={3}
+      paddingRight={3}
+      paddingTop={1}
+      paddingBottom={1}
+      backgroundColor={t().backgroundPanel}
+      border={['top']}
+      borderColor={t().border}
     >
-      <text fg={theme.textMuted}>magic-im interactive</text>
-      <box flexDirection="row" gap={2}>
-        <text fg={theme.textMuted}>
-          <span style={{ fg: theme.text }}>↑↓</span> history{'  '}
-          <span style={{ fg: theme.text }}>tab</span> complete{'  '}
-          <span style={{ fg: theme.text }}>ctrl+p</span> commands{'  '}
-          <span style={{ fg: theme.text }}>ctrl+c</span> exit
+      <text fg={t().textWeak}>magic-im interactive</text>
+      <box flexDirection="row" gap={3}>
+        <text fg={t().textMuted}>
+          <span style={{ fg: t().textStrong }}>↑↓</span> history{'  '}
+          <span style={{ fg: t().textStrong }}>tab</span> complete{'  '}
+          <span style={{ fg: t().textStrong }}>ctrl+p</span> commands{'  '}
+          <span style={{ fg: t().textStrong }}>ctrl+c</span> exit
         </text>
       </box>
     </box>
@@ -245,6 +315,15 @@ function FooterBar() {
 
 // ─── InteractiveShell TUI component ──────────────────────────────────────────
 function InteractiveShell() {
+  // Theme state
+  const [themeMode, setThemeMode] = createSignal<'light' | 'dark'>(getSystemTheme());
+  const theme = createMemo(() => themes[themeMode()]);
+
+  // Toggle theme handler
+  const toggleTheme = () => {
+    setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const [input, setInput] = createSignal('');
   const [suggestions, setSuggestions] = createSignal<typeof AVAILABLE_COMMANDS>([]);
   const [history, setHistory] = createSignal<string[]>([]);
@@ -308,6 +387,12 @@ function InteractiveShell() {
 
     if (['/clear', '/cls'].includes(trimmed)) {
       setEntries([{ type: 'output', text: styles.dim('Screen cleared. Type /help to see all commands.') }]);
+      return;
+    }
+
+    if (['/theme'].includes(trimmed)) {
+      toggleTheme();
+      addEntries([{ type: 'output', text: styles.success(`Theme switched to ${themeMode() === 'dark' ? 'light' : 'dark'} mode`) }]);
       return;
     }
 
@@ -415,14 +500,16 @@ function InteractiveShell() {
     textarea?.focus();
   });
 
-  const mainWidth = () => dims().width - (wide() ? 42 : 0);
-  const scrollHeight = () => Math.max(dims().height - 5, 3);
+  const mainWidth = () => dims().width - (wide() ? 38 : 0);
+  const scrollHeight = () => Math.max(dims().height - 6, 3);
+
+  const t = theme;
 
   return (
     <box
       width={dims().width}
       height={dims().height}
-      backgroundColor={theme.background}
+      backgroundColor={t().background}
       flexDirection="column"
     >
       {/* ── Main row: content + sidebar ── */}
@@ -431,9 +518,9 @@ function InteractiveShell() {
         <box
           flexGrow={1}
           flexDirection="column"
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={1}
+          paddingLeft={3}
+          paddingRight={3}
+          paddingTop={2}
           paddingBottom={0}
           gap={1}
         >
@@ -442,30 +529,31 @@ function InteractiveShell() {
             flexGrow={1}
             height={scrollHeight()}
           >
-            <box flexShrink={0} gap={0}>
+            <box flexShrink={0} gap={1}>
               <For each={entries()}>
                 {(entry) => {
                   if (entry.type === 'separator') {
-                    return <text fg={theme.textMuted}>{' '}</text>;
+                    return <text fg={t().border}>{'─'.repeat(mainWidth() - 6)}</text>;
                   }
                   if (entry.type === 'user') {
                     return (
                       <box
                         border={['left']}
-                        borderColor={theme.primary}
+                        borderColor={t().primary}
                         paddingLeft={2}
                         paddingTop={1}
                         paddingBottom={1}
                         marginTop={1}
+                        marginBottom={1}
                         flexShrink={0}
                       >
-                        <text fg={theme.text}>{entry.text}</text>
+                        <text fg={t().textStrong}>{entry.text}</text>
                       </box>
                     );
                   }
                   return (
-                    <box paddingLeft={3} marginTop={0} flexShrink={0}>
-                      <text fg={theme.text}>{entry.text}</text>
+                    <box paddingLeft={3} paddingTop={0} paddingBottom={0} flexShrink={0}>
+                      <text fg={t().text}>{entry.text}</text>
                     </box>
                   );
                 }}
@@ -479,25 +567,32 @@ function InteractiveShell() {
               flexDirection="row"
               flexWrap="wrap"
               paddingLeft={1}
+              paddingTop={1}
+              paddingBottom={1}
               gap={1}
               flexShrink={0}
+              backgroundColor={t().backgroundWeak}
+              border={['top']}
+              borderColor={t().border}
             >
               <For each={suggestions().slice(0, 6)}>
                 {(sug, i) => (
                   <box
                     paddingLeft={1}
                     paddingRight={1}
-                    backgroundColor={i() === selectedSuggestion() ? theme.backgroundElement : undefined}
+                    paddingTop={0}
+                    paddingBottom={0}
+                    backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : undefined}
                     onMouseUp={() => {
                       textarea?.setText(sug.command);
                       setInput(sug.command);
                       setSuggestions([]);
                     }}
                   >
-                    <text fg={i() === selectedSuggestion() ? theme.primary : theme.textMuted}>
+                    <text fg={i() === selectedSuggestion() ? t().primary : t().textWeak}>
                       {sug.command}
                     </text>
-                    <text fg={theme.textMuted}>{' '}{sug.description}</text>
+                    <text fg={t().textMuted}>{' '}{sug.description}</text>
                   </box>
                 )}
               </For>
@@ -508,14 +603,16 @@ function InteractiveShell() {
           <box
             flexDirection="row"
             flexShrink={0}
-            paddingLeft={1}
+            paddingLeft={2}
+            paddingRight={2}
             paddingBottom={1}
             paddingTop={1}
-            gap={1}
+            gap={2}
+            backgroundColor={t().backgroundPanel}
             border={['top']}
-            borderColor={theme.border}
+            borderColor={t().border}
           >
-            <text fg={theme.primary}>{'▋'}</text>
+            <text fg={t().interactive}>{'›'}</text>
             <textarea
               ref={(val: TextareaRenderable) => { textarea = val; }}
               flexGrow={1}
@@ -523,9 +620,9 @@ function InteractiveShell() {
               minHeight={1}
               maxHeight={1}
               placeholder="Type a /command or press Tab for suggestions..."
-              textColor={theme.text}
-              focusedTextColor={theme.text}
-              cursorColor={theme.primary}
+              textColor={t().text}
+              focusedTextColor={t().textStrong}
+              cursorColor={t().interactive}
               onContentChange={() => {
                 const val = textarea?.plainText ?? '';
                 setInput(val);
@@ -541,7 +638,7 @@ function InteractiveShell() {
 
         {/* ── Right sidebar (only on wide terminals) ── */}
         <Show when={wide()}>
-          <Sidebar commandCount={() => AVAILABLE_COMMANDS.length} />
+          <Sidebar commandCount={() => AVAILABLE_COMMANDS.length} theme={t()} />
         </Show>
       </box>
 
@@ -552,27 +649,28 @@ function InteractiveShell() {
           top={Math.floor(dims().height * 0.15)}
           left={Math.floor(dims().width * 0.1)}
           width={Math.floor(dims().width * 0.8)}
-          backgroundColor={theme.backgroundElement}
+          backgroundColor={t().backgroundElement}
           border={['top', 'bottom', 'left', 'right']}
-          borderColor={theme.borderActive}
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={2}
+          borderColor={t().borderActive}
+          paddingTop={2}
+          paddingBottom={2}
+          paddingLeft={3}
+          paddingRight={3}
           gap={1}
         >
-          <box flexDirection="row" justifyContent="space-between">
-            <text fg={theme.text}><b>Commands</b></text>
-            <text fg={theme.textMuted}>esc to close</text>
+          <box flexDirection="row" justifyContent="space-between" marginBottom={1}>
+            <text fg={t().textStrong}><b>Commands</b></text>
+            <text fg={t().textWeak}>esc to close</text>
           </box>
           <box
             flexDirection="row"
             border={['bottom']}
-            borderColor={theme.border}
+            borderColor={t().border}
             paddingBottom={1}
+            marginBottom={1}
             gap={1}
           >
-            <text fg={theme.primary}>{'›'}</text>
+            <text fg={t().interactive}>{'›'}</text>
             <textarea
               ref={(val: TextareaRenderable) => { cmdSearchTextarea = val; }}
               flexGrow={1}
@@ -580,9 +678,9 @@ function InteractiveShell() {
               minHeight={1}
               maxHeight={1}
               placeholder="Search commands..."
-              textColor={theme.text}
-              focusedTextColor={theme.text}
-              cursorColor={theme.primary}
+              textColor={t().text}
+              focusedTextColor={t().textStrong}
+              cursorColor={t().interactive}
               onContentChange={() => {
                 setCmdSearch(cmdSearchTextarea?.plainText ?? '');
               }}
@@ -605,7 +703,9 @@ function InteractiveShell() {
                 justifyContent="space-between"
                 paddingLeft={1}
                 paddingRight={1}
-                backgroundColor={i() === 0 ? theme.backgroundPanel : undefined}
+                paddingTop={0}
+                paddingBottom={0}
+                backgroundColor={i() === 0 ? t().backgroundPanel : undefined}
                 onMouseUp={() => {
                   textarea?.setText(cmd.command);
                   setInput(cmd.command);
@@ -613,8 +713,8 @@ function InteractiveShell() {
                   setCmdPaletteOpen(false);
                 }}
               >
-                <text fg={i() === 0 ? theme.primary : theme.text}>{cmd.command}</text>
-                <text fg={theme.textMuted}>{cmd.description}</text>
+                <text fg={i() === 0 ? t().primary : t().text}>{cmd.command}</text>
+                <text fg={t().textWeak}>{cmd.description}</text>
               </box>
             )}
           </For>
@@ -622,7 +722,7 @@ function InteractiveShell() {
       </Show>
 
       {/* ── Footer keybind bar ── */}
-      <FooterBar />
+      <FooterBar theme={t()} />
     </box>
   );
 }

@@ -3,18 +3,39 @@ import type { SpinnerRenderable } from 'opentui-spinner';
 import Table from 'cli-table3';
 import { t } from './i18n.js';
 
-// ─── Color palette ───────────────────────────────────────────────────────────
+// ─── Color palette (opencode dark theme) ─────────────────────────────────────
 const Colors = {
-  cyan: RGBA.fromInts(78, 205, 196),
-  green: RGBA.fromInts(0, 184, 148),
-  red: RGBA.fromInts(214, 48, 49),
-  yellow: RGBA.fromInts(253, 203, 110),
-  blue: RGBA.fromInts(116, 185, 255),
-  magenta: RGBA.fromInts(162, 155, 254),
+  // Primary accent (opencode orange/peach)
+  primary: RGBA.fromInts(250, 178, 131),   // #fab283
+  // Accent (purple)
+  accent: RGBA.fromInts(157, 124, 216),    // #9d7cd8
+  // Semantic colors
+  success: RGBA.fromInts(127, 216, 143),   // #7fd88f
+  warning: RGBA.fromInts(245, 167, 66),    // #f5a742
+  error: RGBA.fromInts(224, 108, 117),     // #e06c75
+  info: RGBA.fromInts(86, 182, 194),       // #56b6c2
+  // Interactive (cyan)
+  interactive: RGBA.fromInts(86, 182, 194), // #56b6c2
+  // Text colors
+  text: RGBA.fromInts(238, 238, 238),      // #eeeeee
+  textStrong: RGBA.fromInts(255, 255, 255), // #ffffff
+  textWeak: RGBA.fromInts(128, 128, 128),  // #808080
+  textMuted: RGBA.fromInts(99, 110, 114),  // #636e72
+  // Background colors
+  background: RGBA.fromInts(10, 10, 10),   // #0a0a0a
+  backgroundPanel: RGBA.fromInts(17, 17, 17), // #111111
+  backgroundElement: RGBA.fromInts(26, 26, 26), // #1a1a1a
+  // Legacy aliases
+  cyan: RGBA.fromInts(86, 182, 194),
+  green: RGBA.fromInts(127, 216, 143),
+  red: RGBA.fromInts(224, 108, 117),
+  yellow: RGBA.fromInts(245, 167, 66),
+  blue: RGBA.fromInts(86, 182, 194),
+  magenta: RGBA.fromInts(157, 124, 216),
   white: RGBA.fromInts(255, 255, 255),
-  gray: RGBA.fromInts(130, 130, 130),
-  orange: RGBA.fromInts(255, 107, 107),
-  dim: RGBA.fromInts(100, 100, 100),
+  gray: RGBA.fromInts(128, 128, 128),
+  orange: RGBA.fromInts(250, 178, 131),
+  dim: RGBA.fromInts(128, 128, 128),
 };
 
 // ─── Low-level ANSI helper (used when opentui renderer is not active) ─────────
@@ -97,15 +118,15 @@ export const createInfoBox = (content: string): string => renderBox(content, '34
 export const showWelcomeBanner = (): void => {
   const banner = [
     '',
-    ansi('  ███╗   ███╗ █████╗  ██████╗ ██╗ ██████╗    ██╗███╗   ███╗', '1;36'),
-    ansi('  ████╗ ████║██╔══██╗██╔════╝ ██║██╔════╝    ██║████╗ ████║', '1;36'),
-    ansi('  ██╔████╔██║███████║██║  ███╗██║██║         ██║██╔████╔██║', '36'),
-    ansi('  ██║╚██╔╝██║██╔══██║██║   ██║██║██║         ██║██║╚██╔╝██║', '36'),
-    ansi('  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║╚██████╗    ██║██║ ╚═╝ ██║', '1;96'),
-    ansi('  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═════╝    ╚═╝╚═╝     ╚═╝', '1;96'),
+    ansi('  ███╗   ███╗ █████╗  ██████╗ ██╗ ██████╗    ██╗███╗   ███╗', '1;38;2;250;178;131'),
+    ansi('  ████╗ ████║██╔══██╗██╔════╝ ██║██╔════╝    ██║████╗ ████║', '1;38;2;250;178;131'),
+    ansi('  ██╔████╔██║███████║██║  ███╗██║██║         ██║██╔████╔██║', '38;2;250;178;131'),
+    ansi('  ██║╚██╔╝██║██╔══██║██║   ██║██║██║         ██║██║╚██╔╝██║', '38;2;250;178;131'),
+    ansi('  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║╚██████╗    ██║██║ ╚═╝ ██║', '1;38;2;245;167;66'),
+    ansi('  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═════╝    ╚═╝╚═╝     ╚═╝', '1;38;2;245;167;66'),
     '',
-    ansi('  AI Agent Era Instant Messaging CLI', '1;36'),
-    ansi('  ' + '━'.repeat(58), '2'),
+    ansi('  AI Agent Era Instant Messaging CLI', '1;38;2;250;178;131'),
+    ansi('  ' + '━'.repeat(58), '38;2;128;128;128'),
     '',
   ].join('\n');
   process.stdout.write(banner);
