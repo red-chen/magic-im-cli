@@ -82,36 +82,10 @@ type Theme = typeof themes.dark;
 
 // ─── Available commands ───────────────────────────────────────────────────────
 const AVAILABLE_COMMANDS = [
-  { command: '/config get',            description: 'Get a config value' },
-  { command: '/config set',            description: 'Set a config value' },
-  { command: '/config list',           description: 'List all config values' },
-  { command: '/config language',       description: 'Change CLI language' },
-  { command: '/auth sign-up',          description: 'Create a new account' },
   { command: '/auth sign-in',          description: 'Sign in to your account' },
-  { command: '/auth sign-out',         description: 'Sign out from your account' },
-  { command: '/auth agent-token',      description: 'Generate agent token' },
-  { command: '/auth refresh',          description: 'Refresh authentication token' },
-  { command: '/auth status',           description: 'Check authentication status' },
-  { command: '/agent create',          description: 'Create a new AI agent' },
-  { command: '/agent list',            description: 'List all your agents' },
-  { command: '/agent get',             description: 'Get agent details' },
-  { command: '/agent update',          description: 'Update an agent' },
-  { command: '/agent delete',          description: 'Delete an agent' },
-  { command: '/friend add',            description: 'Send a friend request' },
-  { command: '/friend list',           description: 'List all friends' },
-  { command: '/friend requests',       description: 'View pending friend requests' },
-  { command: '/friend accept',         description: 'Accept a friend request' },
-  { command: '/friend reject',         description: 'Reject a friend request' },
-  { command: '/friend remove',         description: 'Remove a friend' },
   { command: '/search agents',         description: 'Search for agents' },
-  { command: '/message send',          description: 'Send a message' },
-  { command: '/message poll',          description: 'Poll for new messages' },
-  { command: '/conversation list',     description: 'List conversations' },
-  { command: '/conversation messages', description: 'Get messages in a conversation' },
-  { command: '/chat',                  description: 'Start an interactive chat session' },
+  { command: '/search users',          description: 'Search for users by nickname or email' },
   { command: '/theme',                 description: 'Toggle light/dark theme' },
-  { command: '/help',                  description: 'Show available commands' },
-  { command: '/clear',                 description: 'Clear the screen' },
   { command: '/exit',                  description: 'Exit interactive mode' },
 ];
 
@@ -595,12 +569,18 @@ function InteractiveShell(props: { initialSnapshot?: {
       return;
     }
 
-    const outputEntries: OutputEntry[] = result.lines.map((l) => ({
+    // Filter out spinner lines (lines starting with spinner frames)
+    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    const filteredLines = result.lines.filter((l) => {
+      const trimmed = l.trim();
+      return !spinnerFrames.some((frame) => trimmed.startsWith(frame));
+    });
+    const outputEntries: OutputEntry[] = filteredLines.map((l) => ({
       type: 'output' as const,
       text: l,
     }));
     if (outputEntries.length > 0) {
-      addEntries([...outputEntries, { type: 'separator', text: '' }]);
+      addEntries(outputEntries);
     }
     if (!result.continue) {
       addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
@@ -732,16 +712,15 @@ function InteractiveShell(props: { initialSnapshot?: {
                 if (entry.type === 'user') {
                   return (
                     <box
-                      border={['left']}
-                      borderColor={t().primary}
+                      backgroundColor={t().backgroundElement}
                       paddingLeft={2}
                       paddingTop={1}
                       paddingBottom={1}
-                      marginTop={1}
-                      marginBottom={1}
+                      marginTop={0}
+                      marginBottom={0}
                       flexShrink={0}
                     >
-                      <text fg={t().textStrong}>{entry.text}</text>
+                      <text fg={t().primary}>{entry.text}</text>
                     </box>
                   );
                 }
