@@ -70,6 +70,15 @@ export const setLanguage = (lang: Language): void => {
   setConfigValue('language', lang);
 };
 
+export const getTheme = (): 'light' | 'dark' | undefined => {
+  const config = getConfigInternal();
+  return config.theme;
+};
+
+export const setTheme = (theme: 'light' | 'dark'): void => {
+  setConfigValue('theme', theme);
+};
+
 export const setConfig = (key: keyof Config, value: string): void => {
   setConfigValue(key, value);
 };

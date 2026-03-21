@@ -1,10 +1,13 @@
 export type Language = 'zh' | 'en';
 
+export type ThemeMode = 'light' | 'dark';
+
 export interface Config {
   apiUrl: string;
   token?: string;
   agentToken?: string;
   language?: Language;
+  theme?: ThemeMode;
 }
 
 export interface User {

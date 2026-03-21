@@ -1,7 +1,8 @@
-import { render, useKeyboard, useTerminalDimensions } from '@opentui/solid';
+import { render, useKeyboard, useTerminalDimensions, useRenderer } from '@opentui/solid';
 import { createSignal, For, Show, onMount, createMemo } from 'solid-js';
 import type { KeyEvent, TextareaRenderable } from '@opentui/core';
 import { styles } from './ui.js';
+import { getTheme, setTheme } from './config.js';
 
 // ─── Theme definitions (opencode) ─────────────────────────────────────────────
 // Based on opencode/packages/ui/src/theme/themes/opencode.json
@@ -55,10 +56,16 @@ const themes = {
 };
 
 // Detect system color scheme preference
-function getSystemTheme(): 'light' | 'dark' {
+function getInitialTheme(): 'light' | 'dark' {
+  // Check saved config first
+  const savedTheme = getTheme();
+  if (savedTheme) return savedTheme;
+  
+  // Check environment override
   if (process.env.MAGIC_IM_THEME === 'light') return 'light';
   if (process.env.MAGIC_IM_THEME === 'dark') return 'dark';
   
+  // Detect from terminal
   const colorFgBg = process.env.COLORFGBG;
   if (colorFgBg) {
     const bg = parseInt(colorFgBg.split(';')[1] ?? '0', 10);
@@ -301,12 +308,26 @@ function KeybindHints(props: { theme: Theme }) {
 // ─── InteractiveShell TUI component ──────────────────────────────────────────
 function InteractiveShell() {
   // Theme state
-  const [themeMode, setThemeMode] = createSignal<'light' | 'dark'>(getSystemTheme());
+  const [themeMode, setThemeMode] = createSignal<'light' | 'dark'>(getInitialTheme());
   const theme = createMemo(() => themes[themeMode()]);
+  const renderer = useRenderer();
 
   // Toggle theme handler
   const toggleTheme = () => {
-    setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    const newMode = themeMode() === 'dark' ? 'light' : 'dark';
+    setThemeMode(newMode);
+    setTheme(newMode); // Save to settings.json
+  };
+  
+  // Cleanup function for exit
+  const cleanupAndExit = () => {
+    // Reset terminal title
+    renderer.setTerminalTitle('');
+    // Destroy renderer (this handles alternate screen buffer cleanup)
+    renderer.destroy();
+    // Exit alternate screen buffer as fallback
+    process.stdout.write('\x1b[?1049l');
+    process.exit(0);
   };
 
   const [input, setInput] = createSignal('');
@@ -374,7 +395,9 @@ function InteractiveShell() {
 
     if (['/exit', '/quit', '/q'].includes(trimmed)) {
       addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
-      setTimeout(() => process.exit(0), 100);
+      setTimeout(() => {
+        cleanupAndExit();
+      }, 100);
       return;
     }
 
@@ -410,7 +433,9 @@ function InteractiveShell() {
     if (typeof result === 'boolean') {
       if (!result) {
         addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
-        setTimeout(() => process.exit(0), 100);
+        setTimeout(() => {
+          cleanupAndExit();
+        }, 100);
       }
       return;
     }
@@ -424,7 +449,9 @@ function InteractiveShell() {
     }
     if (!result.continue) {
       addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
-      setTimeout(() => process.exit(0), 100);
+      setTimeout(() => {
+        cleanupAndExit();
+      }, 100);
     }
   };
 
@@ -486,7 +513,9 @@ function InteractiveShell() {
 
     if (evt.ctrl && evt.name === 'c') {
       addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
-      setTimeout(() => process.exit(0), 100);
+      setTimeout(() => {
+        cleanupAndExit();
+      }, 100);
     }
   });
 
@@ -733,11 +762,19 @@ function InteractiveShell() {
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 export async function startInteractiveMode(): Promise<void> {
-  return render(
-    () => <InteractiveShell />,
-    {
-      stdout: process.stdout,
-      stdin: process.stdin,
-    },
-  );
+  // Enter alternate screen buffer before rendering
+  process.stdout.write('\x1b[?1049h');
+  
+  try {
+    await render(
+      () => <InteractiveShell />,
+      {
+        stdout: process.stdout,
+        stdin: process.stdin,
+      },
+    );
+  } finally {
+    // Ensure we exit alternate screen buffer even if render throws
+    process.stdout.write('\x1b[?1049l');
+  }
 }
