@@ -1,11 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { Config, Language } from '../types/index.js';
+import { Config, Language, SessionSnapshot } from '../types/index.js';
 
 // Config file path: ~/.magic-im/settings.json
 const CONFIG_DIR = join(homedir(), '.magic-im');
 const CONFIG_FILE = join(CONFIG_DIR, 'settings.json');
+const SNAPSHOT_DIR = join(CONFIG_DIR, 'snapshots');
 
 // Default config
 const defaultConfig: Config = {
@@ -116,4 +117,66 @@ export const getApiUrl = (): string => {
 
 export const getConfigFilePath = (): string => {
   return CONFIG_FILE;
+};
+
+// ─── Session Snapshot Functions ───────────────────────────────────────────────
+
+const ensureSnapshotDir = (): void => {
+  if (!existsSync(SNAPSHOT_DIR)) {
+    mkdirSync(SNAPSHOT_DIR, { recursive: true });
+  }
+};
+
+export const saveSnapshot = (snapshot: SessionSnapshot): void => {
+  ensureSnapshotDir();
+  const filePath = join(SNAPSHOT_DIR, `${snapshot.id}.json`);
+  writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+};
+
+export const loadSnapshot = (id: string): SessionSnapshot | null => {
+  const filePath = join(SNAPSHOT_DIR, `${id}.json`);
+  try {
+    if (existsSync(filePath)) {
+      const data = readFileSync(filePath, 'utf-8');
+      return JSON.parse(data) as SessionSnapshot;
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return null;
+};
+
+export const deleteSnapshot = (id: string): void => {
+  const filePath = join(SNAPSHOT_DIR, `${id}.json`);
+  try {
+    if (existsSync(filePath)) {
+      unlinkSync(filePath);
+    }
+  } catch {
+    // Ignore delete errors
+  }
+};
+
+export const listSnapshots = (): SessionSnapshot[] => {
+  try {
+    if (!existsSync(SNAPSHOT_DIR)) return [];
+    const files = readdirSync(SNAPSHOT_DIR).filter(f => f.endsWith('.json'));
+    return files
+      .map(f => {
+        try {
+          const data = readFileSync(join(SNAPSHOT_DIR, f), 'utf-8');
+          return JSON.parse(data) as SessionSnapshot;
+        } catch {
+          return null;
+        }
+      })
+      .filter((s): s is SessionSnapshot => s !== null)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  } catch {
+    return [];
+  }
+};
+
+export const getSnapshotDirPath = (): string => {
+  return SNAPSHOT_DIR;
 };

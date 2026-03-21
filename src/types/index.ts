@@ -10,6 +10,19 @@ export interface Config {
   theme?: ThemeMode;
 }
 
+// Session snapshot for restoring TUI state
+export interface SessionSnapshot {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  entries: Array<{
+    type: 'user' | 'output' | 'separator';
+    text: string;
+  }>;
+  history: string[];
+  theme: ThemeMode;
+}
+
 export interface User {
   id: string;
   email: string;

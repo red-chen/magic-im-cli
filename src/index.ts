@@ -16,6 +16,7 @@ import chatCommand from './commands/chat.js';
 import { checkFirstRun } from './utils/first-run.js';
 import { showWelcomeBanner, UI } from './utils/ui.js';
 import { startInteractiveMode } from './utils/interactive.js';
+import { loadSnapshot } from './utils/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -37,8 +38,13 @@ async function main() {
     setJsonMode(true);
   }
 
+  // Check for session restore flag
+  const sessionIdx = process.argv.indexOf('-s');
+  const sessionId = sessionIdx !== -1 ? process.argv[sessionIdx + 1] : undefined;
+  const snapshot = sessionId ? loadSnapshot(sessionId) : null;
+
   // Detect interactive mode: no positional command arg → interactive
-  const nonFlagArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('-'));
+  const nonFlagArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('-') && arg !== sessionId);
   const hasCommand = nonFlagArgs.length > 0;
 
   // Check if this is the first run and prompt for language
@@ -47,7 +53,7 @@ async function main() {
   if (!hasCommand) {
     // Interactive mode: no command provided, launch TUI shell
     showWelcomeBanner();
-    await startInteractiveMode();
+    await startInteractiveMode(snapshot);
     return;
   }
 

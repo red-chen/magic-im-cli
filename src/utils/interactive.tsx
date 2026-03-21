@@ -2,7 +2,7 @@ import { render, useKeyboard, useTerminalDimensions, useRenderer } from '@opentu
 import { createSignal, For, Show, onMount, createMemo } from 'solid-js';
 import type { KeyEvent, TextareaRenderable } from '@opentui/core';
 import { styles } from './ui.js';
-import { getTheme, setTheme } from './config.js';
+import { getTheme, setTheme, saveSnapshot } from './config.js';
 
 // ─── Theme definitions (opencode) ─────────────────────────────────────────────
 // Based on opencode/packages/ui/src/theme/themes/opencode.json
@@ -306,9 +306,15 @@ function KeybindHints(props: { theme: Theme }) {
 }
 
 // ─── InteractiveShell TUI component ──────────────────────────────────────────
-function InteractiveShell() {
-  // Theme state
-  const [themeMode, setThemeMode] = createSignal<'light' | 'dark'>(getInitialTheme());
+function InteractiveShell(props: { initialSnapshot?: { 
+  entries?: Array<{ type: 'user' | 'output' | 'separator'; text: string }>;
+  history?: string[];
+  theme?: 'light' | 'dark';
+} | null }) {
+  // Theme state - use snapshot theme if available
+  const [themeMode, setThemeMode] = createSignal<'light' | 'dark'>(
+    props.initialSnapshot?.theme || getInitialTheme()
+  );
   const theme = createMemo(() => themes[themeMode()]);
   const renderer = useRenderer();
 
@@ -319,26 +325,57 @@ function InteractiveShell() {
     setTheme(newMode); // Save to settings.json
   };
   
+  // Generate session ID for this session
+  const sessionId = createMemo(() => {
+    // Use timestamp + random for unique ID
+    return `ses_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`;
+  });
+
+  // Save current state to snapshot
+  const saveSessionState = () => {
+    const snapshot = {
+      id: sessionId(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      entries: entries(),
+      history: history(),
+      theme: themeMode(),
+    };
+    saveSnapshot(snapshot);
+    return snapshot.id;
+  };
+
   // Cleanup function for exit
   const cleanupAndExit = () => {
+    // Save session state before exit
+    const savedId = saveSessionState();
     // Reset terminal title
     renderer.setTerminalTitle('');
     // Destroy renderer (this handles alternate screen buffer cleanup)
     renderer.destroy();
     // Exit alternate screen buffer as fallback
     process.stdout.write('\x1b[?1049l');
+    // Print session ID to stdout so user can resume later
+    process.stdout.write(`\nSession saved: ${savedId}\n`);
+    process.stdout.write(`Resume with: magic-im -s ${savedId}\n\n`);
     process.exit(0);
   };
 
   const [input, setInput] = createSignal('');
   const [suggestions, setSuggestions] = createSignal<typeof AVAILABLE_COMMANDS>([]);
-  const [history, setHistory] = createSignal<string[]>([]);
+  // Use snapshot history if available
+  const [history, setHistory] = createSignal<string[]>(props.initialSnapshot?.history || []);
   const [historyIdx, setHistoryIdx] = createSignal(-1);
   const [selectedSuggestion, setSelectedSuggestion] = createSignal(0);
-  const [entries, setEntries] = createSignal<OutputEntry[]>([
-    { type: 'output', text: styles.dim('Type /help to see all commands, /exit to quit.') },
-    { type: 'separator', text: '' },
-  ]);
+  // Use snapshot entries if available, otherwise use default
+  const [entries, setEntries] = createSignal<OutputEntry[]>(
+    props.initialSnapshot?.entries && props.initialSnapshot.entries.length > 0
+      ? props.initialSnapshot.entries
+      : [
+          { type: 'output', text: styles.dim('Type /help to see all commands, /exit to quit.') },
+          { type: 'separator', text: '' },
+        ]
+  );
   const [cmdPaletteOpen, setCmdPaletteOpen] = createSignal(false);
   const [cmdSearch, setCmdSearch] = createSignal('');
 
@@ -761,13 +798,17 @@ function InteractiveShell() {
 }
 
 // ─── Public entry point ───────────────────────────────────────────────────────
-export async function startInteractiveMode(): Promise<void> {
+export async function startInteractiveMode(snapshot?: { 
+  entries?: Array<{ type: 'user' | 'output' | 'separator'; text: string }>;
+  history?: string[];
+  theme?: 'light' | 'dark';
+} | null): Promise<void> {
   // Enter alternate screen buffer before rendering
   process.stdout.write('\x1b[?1049h');
   
   try {
     await render(
-      () => <InteractiveShell />,
+      () => <InteractiveShell initialSnapshot={snapshot} />,
       {
         stdout: process.stdout,
         stdin: process.stdin,
