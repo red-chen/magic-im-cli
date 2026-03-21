@@ -224,7 +224,7 @@ function LoadingSpinner(props: { text: string; theme: Theme }) {
     <box
       flexDirection="row"
       paddingLeft={3}
-      paddingTop={0}
+      paddingTop={1}
       paddingBottom={0}
       flexShrink={0}
       width="100%"
@@ -414,11 +414,8 @@ function KeybindHints(props: { theme: Theme }) {
       flexDirection="row"
       justifyContent="flex-end"
       flexShrink={0}
-      paddingLeft={3}
-      paddingRight={3}
-      paddingTop={0}
-      paddingBottom={1}
-      backgroundColor={t().background}
+      paddingTop={1}
+      paddingBottom={0}
     >
       <text fg={t().textMuted}>
         <span style={{ fg: t().textStrong }}>ctrl+t</span> variants{'  '}
@@ -788,12 +785,15 @@ function InteractiveShell(props: { initialSnapshot?: {
         flexGrow={1}
         flexDirection="column"
         height="100%"
+        paddingLeft={2}
+        paddingRight={2}
+        paddingTop={1}
+        paddingBottom={1}
+        gap={1}
       >
         {/* Messages area */}
         <scrollbox
           flexGrow={1}
-          paddingLeft={3}
-          paddingRight={3}
           paddingTop={0}
           paddingBottom={0}
           ref={(ref) => { scrollRef = ref; }}
@@ -815,16 +815,20 @@ function InteractiveShell(props: { initialSnapshot?: {
                 if (entry.type === 'user') {
                   return (
                     <box
-                      backgroundColor={t().backgroundElement}
-                      paddingLeft={2}
-                      paddingTop={1}
-                      paddingBottom={1}
-                      marginTop={0}
-                      marginBottom={0}
+                      border={['left']}
+                      borderColor={t().primary}
+                      marginTop={1}
                       flexShrink={0}
-                      width="100%"
                     >
-                      <text fg={t().primary}>{entry.text}</text>
+                      <box
+                        backgroundColor={t().backgroundPanel}
+                        paddingLeft={2}
+                        paddingTop={1}
+                        paddingBottom={1}
+                        flexShrink={0}
+                      >
+                        <text fg={t().text}>{entry.text}</text>
+                      </box>
                     </box>
                   );
                 }
@@ -856,6 +860,8 @@ function InteractiveShell(props: { initialSnapshot?: {
             paddingBottom={0}
             flexShrink={0}
             backgroundColor={t().backgroundPanel}
+            border={['left']}
+            borderColor={t().borderActive}
             maxHeight={12}
           >
             <For each={suggestions().slice(0, 10)}>
@@ -898,7 +904,7 @@ function InteractiveShell(props: { initialSnapshot?: {
           flexShrink={0}
           paddingLeft={0}
           paddingRight={0}
-          backgroundColor={t().backgroundPanel}
+          marginTop={1}
         >
           {/* Left border line */}
           <box
@@ -910,9 +916,10 @@ function InteractiveShell(props: { initialSnapshot?: {
             flexGrow={1}
             flexDirection="row"
             paddingLeft={2}
-            paddingRight={3}
+            paddingRight={2}
             paddingTop={1}
             paddingBottom={1}
+            backgroundColor={t().backgroundPanel}
             gap={2}
           >
             <textarea
@@ -970,9 +977,14 @@ function InteractiveShell(props: { initialSnapshot?: {
         <KeybindHints theme={t()} />
       </box>
 
+      {/* ── Separator between main content and sidebar ── */}
+      <Show when={wide()}>
+        <box width={1} height="100%" backgroundColor={t().border} />
+      </Show>
+
       {/* ── Right sidebar (only on wide terminals) ── */}
       <Show when={wide()}>
-        <Sidebar commandCount={() => AVAILABLE_COMMANDS.length} theme={t()} width={sidebarWidth} />
+        <Sidebar commandCount={() => AVAILABLE_COMMANDS.length} theme={t()} width={sidebarWidth - 1} />
       </Show>
 
       {/* ── Command palette overlay ── */}
