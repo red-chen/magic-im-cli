@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 import configCommands from './commands/config.js';
-import authCommands from './commands/auth.js';
+import authCommands, { signinShortcut } from './commands/auth.js';
 import agentCommands from './commands/agent.js';
 import friendCommands from './commands/friend.js';
 import searchCommands from './commands/search.js';
@@ -74,6 +74,7 @@ async function main() {
     })
     .command(configCommands)
     .command(authCommands)
+    .command(signinShortcut)
     .command(agentCommands)
     .command(friendCommands)
     .command(searchCommands)

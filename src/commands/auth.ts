@@ -64,6 +64,35 @@ const signIn: CommandModule<{}, { email: string; password: string }> = {
   },
 };
 
+// ─── signin (shortcut command) ───────────────────────────────────────────────
+const signinShortcut: CommandModule<{}, { mail: string; password: string }> = {
+  command: 'signin',
+  describe: 'Sign in to your account (shortcut)',
+  builder: (yargs) =>
+    yargs
+      .option('mail', { type: 'string', demandOption: true, description: 'Email address' })
+      .option('password', { type: 'string', demandOption: true, description: 'Password' }),
+  handler: async (argv) => {
+    const stop = spinner('Signing in...');
+    try {
+      const response = await apiClient.post<{ user: User; token: string }>('/auth/sign-in', {
+        email: argv.mail,
+        password: argv.password,
+      });
+      stop();
+      if (response.success) {
+        setToken(response.data.token);
+        UI.println(UI.success('Signed in successfully!'));
+        UI.println(UI.info(`Welcome back, ${response.data.user.nickname}!`));
+      }
+    } catch (error) {
+      stop();
+      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Sign in failed') + '\n');
+      process.exit(1);
+    }
+  },
+};
+
 // ─── sign-out ─────────────────────────────────────────────────────────────────
 const signOut: CommandModule = {
   command: 'sign-out',
@@ -162,4 +191,6 @@ const authCommands: CommandModule = {
   handler: () => {},
 };
 
+// Export both the auth command group and the shortcut command
+export { signinShortcut };
 export default authCommands;

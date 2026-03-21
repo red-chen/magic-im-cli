@@ -281,4 +281,102 @@ describe('auth commands (yargs)', () => {
       expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('not authenticated'));
     });
   });
+
+  describe('signin (shortcut command)', () => {
+    it('should fail when --mail is missing', async () => {
+      const { apiClient } = await import('../utils/api.js');
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      const { default: yargsLib } = await import('yargs');
+      const { hideBin } = await import('yargs/helpers');
+      const authMod = await import('./auth.js');
+
+      process.argv = ['node', 'magic-im', 'signin', '--password', 'pass'];
+      try {
+        await yargsLib(hideBin(process.argv))
+          .command(authMod.signinShortcut)
+          .exitProcess(false)
+          .parseAsync();
+      } catch {}
+      process.argv = [];
+
+      expect(apiClient.post).not.toHaveBeenCalled();
+      exitSpy.mockRestore();
+      stderrSpy.mockRestore();
+    });
+
+    it('should fail when --password is missing', async () => {
+      const { apiClient } = await import('../utils/api.js');
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      const { default: yargsLib } = await import('yargs');
+      const { hideBin } = await import('yargs/helpers');
+      const authMod = await import('./auth.js');
+
+      process.argv = ['node', 'magic-im', 'signin', '--mail', 'a@b.com'];
+      try {
+        await yargsLib(hideBin(process.argv))
+          .command(authMod.signinShortcut)
+          .exitProcess(false)
+          .parseAsync();
+      } catch {}
+      process.argv = [];
+
+      expect(apiClient.post).not.toHaveBeenCalled();
+      exitSpy.mockRestore();
+      stderrSpy.mockRestore();
+    });
+
+    it('should call apiClient.post with correct params when all options provided', async () => {
+      const { apiClient } = await import('../utils/api.js');
+      const { setToken } = await import('../utils/config.js');
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        success: true,
+        data: { user: { id: '1', email: 'a@b.com', nickname: 'Tom', created_at: '' }, token: 'tok3' },
+      });
+
+      const { default: yargsLib } = await import('yargs');
+      const { hideBin } = await import('yargs/helpers');
+      const authMod = await import('./auth.js');
+
+      process.argv = ['node', 'magic-im', 'signin', '--mail', 'a@b.com', '--password', 'pass'];
+      await yargsLib(hideBin(process.argv))
+        .command(authMod.signinShortcut)
+        .exitProcess(false)
+        .parseAsync();
+      process.argv = [];
+
+      expect(apiClient.post).toHaveBeenCalledWith('/auth/sign-in', { email: 'a@b.com', password: 'pass' });
+      expect(setToken).toHaveBeenCalledWith('tok3');
+    });
+
+    it('should handle API error gracefully', async () => {
+      const { apiClient } = await import('../utils/api.js');
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Invalid credentials'));
+
+      const { default: yargsLib } = await import('yargs');
+      const { hideBin } = await import('yargs/helpers');
+      const authMod = await import('./auth.js');
+
+      process.argv = ['node', 'magic-im', 'signin', '--mail', 'a@b.com', '--password', 'wrong'];
+      try {
+        await yargsLib(hideBin(process.argv))
+          .command(authMod.signinShortcut)
+          .exitProcess(false)
+          .parseAsync();
+      } catch {}
+      process.argv = [];
+
+      expect(apiClient.post).toHaveBeenCalledWith('/auth/sign-in', { email: 'a@b.com', password: 'wrong' });
+      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid credentials'));
+      exitSpy.mockRestore();
+      stderrSpy.mockRestore();
+    });
+  });
 });
