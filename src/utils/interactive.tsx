@@ -1,5 +1,5 @@
 import { render, useKeyboard, useTerminalDimensions, useRenderer } from '@opentui/solid';
-import { createSignal, For, Show, onMount, createMemo, createResource } from 'solid-js';
+import { createSignal, For, Show, onMount, onCleanup, createMemo, createResource } from 'solid-js';
 import type { KeyEvent, TextareaRenderable } from '@opentui/core';
 import { styles } from './ui.js';
 import { getTheme, setTheme, saveSnapshot, getToken } from './config.js';
@@ -172,9 +172,13 @@ async function executeSlashCommand(input: string): Promise<boolean> {
 
 // ─── Message entry ────────────────────────────────────────────────────────────
 interface OutputEntry {
-  type: 'user' | 'output' | 'separator';
+  type: 'user' | 'output' | 'separator' | 'page-break' | 'loading';
   text: string;
+  id?: string; // Used for loading entries to identify and remove them
 }
+
+// ─── Scroll ref for auto-scrolling ────────────────────────────────────────────
+let scrollRef: { scrollTop: number; scrollHeight: number } | undefined;
 
 // ─── Fetch user profile ───────────────────────────────────────────────────────
 async function fetchUserProfile(): Promise<User | null> {
@@ -201,6 +205,36 @@ async function fetchAgentList(): Promise<Agent[]> {
 }
 
 import { getVersionDisplay, isDevMode, getBuildTimeDisplay } from './version.js';
+
+// ─── Loading Spinner component ─────────────────────────────────────────────────
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+function LoadingSpinner(props: { text: string; theme: Theme }) {
+  const [frameIndex, setFrameIndex] = createSignal(0);
+  const t = () => props.theme;
+
+  onMount(() => {
+    const interval = setInterval(() => {
+      setFrameIndex((i) => (i + 1) % SPINNER_FRAMES.length);
+    }, 80);
+    onCleanup(() => clearInterval(interval));
+  });
+
+  return (
+    <box
+      flexDirection="row"
+      paddingLeft={3}
+      paddingTop={0}
+      paddingBottom={0}
+      flexShrink={0}
+      width="100%"
+      gap={1}
+    >
+      <text fg={t().interactive}>{SPINNER_FRAMES[frameIndex()]}</text>
+      <text fg={t().textWeak}>{props.text}</text>
+    </box>
+  );
+}
 
 // ─── Sidebar panel ────────────────────────────────────────────────────────────
 function Sidebar(props: { commandCount: () => number; theme: Theme; width: number }) {
@@ -423,11 +457,16 @@ function InteractiveShell(props: { initialSnapshot?: {
 
   // Save current state to snapshot
   const saveSessionState = () => {
+    // Filter out loading entries (they are temporary and shouldn't be saved)
+    const persistentEntries = entries()
+      .filter((e): e is { type: 'user' | 'output' | 'separator' | 'page-break'; text: string } => 
+        e.type !== 'loading'
+      );
     const snapshot = {
       id: sessionId(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      entries: entries(),
+      entries: persistentEntries,
       history: history(),
       theme: themeMode(),
     };
@@ -459,6 +498,8 @@ function InteractiveShell(props: { initialSnapshot?: {
   const [selectedSuggestion, setSelectedSuggestion] = createSignal(0);
   // Track if we're navigating history to prevent clearing suggestions
   let isNavigatingHistory = false;
+  // Track if a command is currently executing (prevents new command input)
+  const [isExecuting, setIsExecuting] = createSignal(false);
   // Use snapshot entries if available, otherwise use default
   const [entries, setEntries] = createSignal<OutputEntry[]>(
     props.initialSnapshot?.entries && props.initialSnapshot.entries.length > 0
@@ -509,11 +550,38 @@ function InteractiveShell(props: { initialSnapshot?: {
 
   const addEntries = (newEntries: OutputEntry[]) => {
     setEntries((prev) => [...prev.slice(-500), ...newEntries]);
+    // Auto-scroll to bottom after adding entries
+    setTimeout(() => {
+      if (scrollRef) {
+        scrollRef.scrollTop = scrollRef.scrollHeight;
+      }
+    }, 0);
+  };
+
+  // Remove loading entry by id
+  const removeLoadingEntry = (loadingId: string) => {
+    setEntries((prev) => prev.filter((e) => e.id !== loadingId));
+  };
+
+  // Generate a loading message based on the command
+  const getLoadingMessage = (cmd: string): string => {
+    const cmdLower = cmd.toLowerCase();
+    if (cmdLower.includes('search users')) return 'Searching users...';
+    if (cmdLower.includes('search agents')) return 'Searching agents...';
+    if (cmdLower.includes('auth')) return 'Authenticating...';
+    if (cmdLower.includes('agent')) return 'Processing agent...';
+    if (cmdLower.includes('friend')) return 'Processing friend request...';
+    if (cmdLower.includes('message')) return 'Sending message...';
+    if (cmdLower.includes('chat')) return 'Starting chat...';
+    return 'Processing...';
   };
 
   const submitCommand = async (cmd: string) => {
     const trimmed = cmd.trim();
     if (!trimmed) return;
+
+    // Prevent new command input while a command is executing
+    if (isExecuting()) return;
 
     addEntries([{ type: 'user', text: trimmed }]);
     setHistory((h) => [trimmed, ...h.slice(0, 99)]);
@@ -555,38 +623,64 @@ function InteractiveShell(props: { initialSnapshot?: {
       return;
     }
 
-    const result = await executeSlashCommand(trimmed) as unknown as
-      | boolean
-      | { lines: string[]; continue: boolean; clear?: boolean };
+    // Set executing state to prevent new commands
+    setIsExecuting(true);
 
-    if (typeof result === 'boolean') {
-      if (!result) {
+    // Add loading entry before executing command
+    const loadingId = `loading_${Date.now()}`;
+    const loadingMessage = getLoadingMessage(trimmed);
+    addEntries([{ type: 'loading', text: loadingMessage, id: loadingId }]);
+
+    try {
+      const result = await executeSlashCommand(trimmed) as unknown as
+        | boolean
+        | { lines: string[]; continue: boolean; clear?: boolean };
+
+      // Remove loading entry after command completes
+      removeLoadingEntry(loadingId);
+
+      if (typeof result === 'boolean') {
+        if (!result) {
+          addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
+          setTimeout(() => {
+            cleanupAndExit();
+          }, 100);
+        }
+        return;
+      }
+
+      // Filter out spinner lines and control sequences
+      // Spinner frames are: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+      // Also filter lines containing \r (carriage return used by spinner for overwriting)
+      // And filter ANSI control sequences like cursor hide/show, clear line
+      const spinnerFramePattern = /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/;
+      const controlSeqPattern = /^\x1b\[\?25[lh]|\x1b\[K|\r/;
+      const filteredLines = result.lines.filter((l) => {
+        // Filter out spinner frames
+        if (spinnerFramePattern.test(l)) return false;
+        // Filter out control sequences (cursor hide/show, clear line)
+        if (controlSeqPattern.test(l)) return false;
+        // Filter out empty lines after stripping control chars
+        const cleaned = l.replace(/\x1b\[[0-9;?]*[A-Za-z]|\r/g, '').trim();
+        if (!cleaned) return false;
+        return true;
+      });
+      const outputEntries: OutputEntry[] = filteredLines.map((l) => ({
+        type: 'output' as const,
+        text: l,
+      }));
+      if (outputEntries.length > 0) {
+        addEntries(outputEntries);
+      }
+      if (!result.continue) {
         addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
         setTimeout(() => {
           cleanupAndExit();
         }, 100);
       }
-      return;
-    }
-
-    // Filter out spinner lines (lines starting with spinner frames)
-    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    const filteredLines = result.lines.filter((l) => {
-      const trimmed = l.trim();
-      return !spinnerFrames.some((frame) => trimmed.startsWith(frame));
-    });
-    const outputEntries: OutputEntry[] = filteredLines.map((l) => ({
-      type: 'output' as const,
-      text: l,
-    }));
-    if (outputEntries.length > 0) {
-      addEntries(outputEntries);
-    }
-    if (!result.continue) {
-      addEntries([{ type: 'output', text: styles.success('Goodbye!') }]);
-      setTimeout(() => {
-        cleanupAndExit();
-      }, 100);
+    } finally {
+      // Always reset executing state when command completes
+      setIsExecuting(false);
     }
   };
 
@@ -700,14 +794,23 @@ function InteractiveShell(props: { initialSnapshot?: {
           flexGrow={1}
           paddingLeft={3}
           paddingRight={3}
-          paddingTop={2}
+          paddingTop={0}
           paddingBottom={0}
+          ref={(ref) => { scrollRef = ref; }}
+          scrollbarOptions={{ visible: false }}
         >
-          <box flexShrink={0} gap={1}>
+          <box flexShrink={0} gap={0} width="100%">
             <For each={entries()}>
               {(entry) => {
+                if (entry.type === 'page-break') {
+                  // Page break creates visual separation and fills space
+                  return <box height={Math.max(0, dims().height - 10)} flexShrink={0} width="100%" />;
+                }
                 if (entry.type === 'separator') {
-                  return <box height={1} />;
+                  return <box height={0} width="100%" />;
+                }
+                if (entry.type === 'loading') {
+                  return <LoadingSpinner text={entry.text} theme={t()} />;
                 }
                 if (entry.type === 'user') {
                   return (
@@ -719,14 +822,23 @@ function InteractiveShell(props: { initialSnapshot?: {
                       marginTop={0}
                       marginBottom={0}
                       flexShrink={0}
+                      width="100%"
                     >
                       <text fg={t().primary}>{entry.text}</text>
                     </box>
                   );
                 }
+                // Strip ANSI escape codes for TUI rendering
+                const cleanText = entry.text.replace(/\x1b\[[0-9;]*m/g, '');
                 return (
-                  <box paddingLeft={3} paddingTop={0} paddingBottom={0} flexShrink={0}>
-                    <text fg={t().text}>{entry.text}</text>
+                  <box 
+                    paddingLeft={3} 
+                    paddingTop={0} 
+                    paddingBottom={0} 
+                    flexShrink={0}
+                    width="100%"
+                  >
+                    <text fg={t().text}>{cleanText}</text>
                   </box>
                 );
               }}

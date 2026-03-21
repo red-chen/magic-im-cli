@@ -16,7 +16,7 @@ export interface SessionSnapshot {
   createdAt: string;
   updatedAt: string;
   entries: Array<{
-    type: 'user' | 'output' | 'separator';
+    type: 'user' | 'output' | 'separator' | 'page-break';
     text: string;
   }>;
   history: string[];
