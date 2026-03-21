@@ -460,6 +460,8 @@ function InteractiveShell(props: { initialSnapshot?: {
   const [history, setHistory] = createSignal<string[]>(props.initialSnapshot?.history || []);
   const [historyIdx, setHistoryIdx] = createSignal(-1);
   const [selectedSuggestion, setSelectedSuggestion] = createSignal(0);
+  // Track if we're navigating history to prevent clearing suggestions
+  let isNavigatingHistory = false;
   // Use snapshot entries if available, otherwise use default
   const [entries, setEntries] = createSignal<OutputEntry[]>(
     props.initialSnapshot?.entries && props.initialSnapshot.entries.length > 0
@@ -611,7 +613,9 @@ function InteractiveShell(props: { initialSnapshot?: {
         setSelectedSuggestion(next);
         const selected = sugs[next];
         if (selected) {
+          // Fill the command into input (user can add more arguments)
           textarea?.setText(selected.command);
+          textarea?.gotoBufferEnd(); // Move cursor to end
           setInput(selected.command);
           setSuggestions([]); // Clear suggestions after selection
         }
@@ -621,23 +625,43 @@ function InteractiveShell(props: { initialSnapshot?: {
 
     if (evt.name === 'up') {
       evt.preventDefault();
+      // When suggestions are visible, navigate through suggestions
+      const sugs = suggestions();
+      if (sugs.length > 0) {
+        const next = (selectedSuggestion() - 1 + sugs.length) % sugs.length;
+        setSelectedSuggestion(next);
+        return;
+      }
+      // Otherwise navigate command history
       const h = history();
       const next = Math.min(historyIdx() + 1, h.length - 1);
       setHistoryIdx(next);
       if (next >= 0 && h[next]) {
+        isNavigatingHistory = true;
         textarea?.setText(h[next]);
         setInput(h[next]);
+        isNavigatingHistory = false;
       }
       return;
     }
 
     if (evt.name === 'down') {
       evt.preventDefault();
+      // When suggestions are visible, navigate through suggestions
+      const sugs = suggestions();
+      if (sugs.length > 0) {
+        const next = (selectedSuggestion() + 1) % sugs.length;
+        setSelectedSuggestion(next);
+        return;
+      }
+      // Otherwise navigate command history
       const next = Math.max(historyIdx() - 1, -1);
       setHistoryIdx(next);
       const val = next >= 0 ? (history()[next] ?? '') : '';
+      isNavigatingHistory = true;
       textarea?.setText(val);
       setInput(val);
+      isNavigatingHistory = false;
       return;
     }
 
@@ -731,7 +755,9 @@ function InteractiveShell(props: { initialSnapshot?: {
                   height={1}
                   backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : t().backgroundPanel}
                   onMouseUp={() => {
+                    // Fill the command into input (user can add more arguments)
                     textarea?.setText(sug.command);
+                    textarea?.gotoBufferEnd(); // Move cursor to end
                     setInput(sug.command);
                     setSuggestions([]);
                   }}
@@ -789,9 +815,26 @@ function InteractiveShell(props: { initialSnapshot?: {
               onContentChange={() => {
                 const val = textarea?.plainText ?? '';
                 setInput(val);
-                updateSuggestions(val);
+                // Don't update suggestions when navigating history
+                // This preserves the suggestion list while browsing command history
+                if (!isNavigatingHistory) {
+                  updateSuggestions(val);
+                }
               }}
               onSubmit={() => {
+                // When suggestions are visible, Enter fills the selected suggestion into input
+                const sugs = suggestions();
+                if (sugs.length > 0) {
+                  const selected = sugs[selectedSuggestion()];
+                  if (selected) {
+                    textarea?.setText(selected.command);
+                    textarea?.gotoBufferEnd(); // Move cursor to end
+                    setInput(selected.command);
+                    setSuggestions([]); // Clear suggestions after selection
+                  }
+                  return;
+                }
+                // Otherwise submit the command
                 void submitCommand(textarea?.plainText ?? '');
               }}
               keyBindings={[{ name: 'return', action: 'submit' }]}
@@ -854,6 +897,7 @@ function InteractiveShell(props: { initialSnapshot?: {
                 const cmd = filteredCmds()[0];
                 if (cmd) {
                   textarea?.setText(cmd.command);
+                  textarea?.gotoBufferEnd(); // Move cursor to end
                   setInput(cmd.command);
                   updateSuggestions(cmd.command);
                 }
@@ -874,6 +918,7 @@ function InteractiveShell(props: { initialSnapshot?: {
                 backgroundColor={i() === 0 ? t().backgroundPanel : undefined}
                 onMouseUp={() => {
                   textarea?.setText(cmd.command);
+                  textarea?.gotoBufferEnd(); // Move cursor to end
                   setInput(cmd.command);
                   updateSuggestions(cmd.command);
                   setCmdPaletteOpen(false);
