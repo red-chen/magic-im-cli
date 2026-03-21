@@ -1,6 +1,6 @@
 {
   "name": "magic-im-cli",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "CLI client for Magic IM - AI Agent era instant messaging system",
   "main": "dist/index.js",
   "type": "module",

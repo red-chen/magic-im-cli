@@ -337,7 +337,12 @@ function InteractiveShell() {
 
   const updateSuggestions = (val: string) => {
     const q = val.toLowerCase();
-    if (!q || q === '/') {
+    // Don't show suggestions for empty input or just "/"
+    if (!q) {
+      setSuggestions([]);
+      return;
+    }
+    if (q === '/') {
       setSuggestions(AVAILABLE_COMMANDS.slice(0, 8));
     } else {
       setSuggestions(
@@ -451,6 +456,7 @@ function InteractiveShell() {
         if (selected) {
           textarea?.setText(selected.command);
           setInput(selected.command);
+          setSuggestions([]); // Clear suggestions after selection
         }
       }
       return;
@@ -543,25 +549,27 @@ function InteractiveShell() {
           </box>
         </scrollbox>
 
-        {/* Suggestions bar */}
+        {/* Suggestions list - vertical like opencode */}
         <Show when={suggestions().length > 0 && !cmdPaletteOpen()}>
           <box
-            flexDirection="row"
-            flexWrap="wrap"
-            paddingLeft={3}
-            paddingTop={1}
-            paddingBottom={1}
-            gap={1}
+            flexDirection="column"
+            paddingLeft={0}
+            paddingRight={0}
+            paddingTop={0}
+            paddingBottom={0}
             flexShrink={0}
             backgroundColor={t().backgroundPanel}
+            maxHeight={12}
           >
-            <For each={suggestions().slice(0, 6)}>
+            <For each={suggestions().slice(0, 10)}>
               {(sug, i) => (
                 <box
-                  paddingLeft={1}
-                  paddingRight={1}
+                  flexDirection="row"
+                  paddingLeft={3}
+                  paddingRight={3}
                   paddingTop={0}
                   paddingBottom={0}
+                  height={1}
                   backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : t().backgroundPanel}
                   onMouseUp={() => {
                     textarea?.setText(sug.command);
@@ -569,10 +577,16 @@ function InteractiveShell() {
                     setSuggestions([]);
                   }}
                 >
-                  <text fg={i() === selectedSuggestion() ? t().primary : t().textWeak}>
+                  <text 
+                    fg={i() === selectedSuggestion() ? t().primary : t().textWeak}
+                    flexShrink={0}
+                    width={20}
+                  >
                     {sug.command}
                   </text>
-                  <text fg={t().textMuted}>{' '}{sug.description}</text>
+                  <text fg={i() === selectedSuggestion() ? t().text : t().textMuted}>
+                    {sug.description}
+                  </text>
                 </box>
               )}
             </For>
@@ -585,7 +599,7 @@ function InteractiveShell() {
           flexShrink={0}
           paddingLeft={0}
           paddingRight={0}
-          backgroundColor={t().background}
+          backgroundColor={t().backgroundPanel}
         >
           {/* Left border line */}
           <box
