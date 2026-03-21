@@ -224,8 +224,7 @@ function LoadingSpinner(props: { text: string; theme: Theme }) {
     <box
       flexDirection="row"
       paddingLeft={3}
-      paddingTop={1}
-      paddingBottom={0}
+      marginTop={1}
       flexShrink={0}
       width="100%"
       gap={1}
@@ -837,8 +836,7 @@ function InteractiveShell(props: { initialSnapshot?: {
                 return (
                   <box 
                     paddingLeft={3} 
-                    paddingTop={0} 
-                    paddingBottom={0} 
+                    marginTop={1}
                     flexShrink={0}
                     width="100%"
                   >
