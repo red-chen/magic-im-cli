@@ -12,6 +12,11 @@ import { resolve } from 'path';
 
 const root = resolve(import.meta.dirname, '..');
 
+// Read version from package.json
+const pkg = await Bun.file(resolve(root, 'package.json')).json();
+const version = pkg.version || '0.0.1';
+const buildTime = new Date().toISOString();
+
 const result = await Bun.build({
   entrypoints: [resolve(root, 'src/index.ts')],
   outdir: resolve(root, 'dist'),
@@ -23,6 +28,10 @@ const result = await Bun.build({
     // keep heavy native/binary deps external so they're loaded from node_modules
   ],
   sourcemap: 'external',
+  define: {
+    __VERSION__: JSON.stringify(version),
+    __BUILD_TIME__: JSON.stringify(buildTime),
+  },
 });
 
 if (!result.success) {
@@ -34,6 +43,8 @@ if (!result.success) {
 }
 
 console.log(`✔ Built ${result.outputs.length} file(s) to dist/`);
+console.log(`  Version: ${version}`);
+console.log(`  Build time: ${buildTime}`);
 for (const out of result.outputs) {
   console.log(`  ${out.path}`);
 }

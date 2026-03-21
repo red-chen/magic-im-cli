@@ -226,6 +226,8 @@ async function fetchAgentList(): Promise<Agent[]> {
   }
 }
 
+import { getVersionDisplay, isDevMode, getBuildTimeDisplay } from './version.js';
+
 // ─── Sidebar panel ────────────────────────────────────────────────────────────
 function Sidebar(props: { commandCount: () => number; theme: Theme; width: number }) {
   const t = () => props.theme;
@@ -367,8 +369,29 @@ function Sidebar(props: { commandCount: () => number; theme: Theme; width: numbe
             <span style={{ fg: t().text }}>
               <b>IM</b>
             </span>{' '}
-            <span>1.0.0</span>
+            <span>{getVersionDisplay()}</span>
           </text>
+          <Show when={isDevMode}>
+            <text fg={t().textMuted}>
+              Build: {getBuildTimeDisplay() || 'dev mode'}
+            </text>
+          </Show>
+        </box>
+      </Show>
+
+      {/* Version info at bottom (when authenticated) */}
+      <Show when={isAuthenticated()}>
+        <box flexShrink={0} paddingTop={2}>
+          <text fg={t().textWeak}>
+            <span style={{ fg: t().success }}>●</span> <b>Magic</b>
+            <span style={{ fg: t().text }}><b>IM</b></span>{' '}
+            <span>{getVersionDisplay()}</span>
+          </text>
+          <Show when={isDevMode}>
+            <text fg={t().textMuted}>
+              Build: {getBuildTimeDisplay() || 'dev mode'}
+            </text>
+          </Show>
         </box>
       </Show>
     </box>
