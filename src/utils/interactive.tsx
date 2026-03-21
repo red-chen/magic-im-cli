@@ -1,5 +1,5 @@
 import { render, useKeyboard, useTerminalDimensions } from '@opentui/solid';
-import { createSignal, For, Show, onMount, createEffect, createMemo } from 'solid-js';
+import { createSignal, For, Show, onMount, createMemo } from 'solid-js';
 import type { KeyEvent, TextareaRenderable } from '@opentui/core';
 import { styles } from './ui.js';
 
@@ -56,21 +56,15 @@ const themes = {
 
 // Detect system color scheme preference
 function getSystemTheme(): 'light' | 'dark' {
-  // Check environment variable first (for CLI/config override)
   if (process.env.MAGIC_IM_THEME === 'light') return 'light';
   if (process.env.MAGIC_IM_THEME === 'dark') return 'dark';
   
-  // Check system preference via environment
-  // Note: In terminal, we can't access matchMedia, but we can check COLORFGBG
   const colorFgBg = process.env.COLORFGBG;
   if (colorFgBg) {
-    // COLORFGBG format is "fg;bg" or "fg;bg;0"
     const bg = parseInt(colorFgBg.split(';')[1] ?? '0', 10);
-    // Light background colors are typically 7-15 (white/light colors)
     if (bg >= 7 && bg <= 15) return 'light';
   }
   
-  // Default to dark for terminal apps
   return 'dark';
 }
 
@@ -138,7 +132,6 @@ async function executeSlashCommand(input: string): Promise<boolean> {
   const origWrite = process.stdout.write.bind(process.stdout);
   const origErrWrite = process.stderr.write.bind(process.stderr);
 
-  // Capture output
   const captured: string[] = [];
   (process.stdout as NodeJS.WriteStream).write = (chunk: unknown) => {
     const s = String(chunk);
@@ -201,12 +194,12 @@ interface OutputEntry {
 }
 
 // ─── Sidebar panel ────────────────────────────────────────────────────────────
-function Sidebar(props: { commandCount: () => number; theme: Theme }) {
+function Sidebar(props: { commandCount: () => number; theme: Theme; width: number }) {
   const t = () => props.theme;
   return (
     <box
       backgroundColor={t().backgroundPanel}
-      width={45}
+      width={props.width}
       height="100%"
       paddingTop={2}
       paddingBottom={1}
@@ -282,29 +275,25 @@ function Sidebar(props: { commandCount: () => number; theme: Theme }) {
   );
 }
 
-// ─── Footer keybind bar ───────────────────────────────────────────────────────
-function FooterBar(props: { theme: Theme }) {
+// ─── Keybind hints component (bottom right) ───────────────────────────────────
+function KeybindHints(props: { theme: Theme }) {
   const t = () => props.theme;
   return (
     <box
       flexDirection="row"
-      justifyContent="space-between"
+      justifyContent="flex-end"
       flexShrink={0}
       paddingLeft={3}
       paddingRight={3}
-      paddingTop={1}
+      paddingTop={0}
       paddingBottom={1}
-      backgroundColor={t().backgroundElement}
+      backgroundColor={t().background}
     >
-      <text fg={t().textWeak}>magic-im interactive</text>
-      <box flexDirection="row" gap={3}>
-        <text fg={t().textMuted}>
-          <span style={{ fg: t().textStrong }}>↑↓</span> history{'  '}
-          <span style={{ fg: t().textStrong }}>tab</span> complete{'  '}
-          <span style={{ fg: t().textStrong }}>ctrl+p</span> commands{'  '}
-          <span style={{ fg: t().textStrong }}>ctrl+c</span> exit
-        </text>
-      </box>
+      <text fg={t().textMuted}>
+        <span style={{ fg: t().textStrong }}>ctrl+t</span> variants{'  '}
+        <span style={{ fg: t().textStrong }}>tab</span> agents{'  '}
+        <span style={{ fg: t().textStrong }}>ctrl+p</span> commands
+      </text>
     </box>
   );
 }
@@ -334,6 +323,9 @@ function InteractiveShell() {
 
   const dims = useTerminalDimensions();
   const wide = () => dims().width > 120;
+
+  const sidebarWidth = 52;
+  const mainWidth = () => dims().width - (wide() ? sidebarWidth : 0);
 
   const filteredCmds = () => {
     const q = cmdSearch().toLowerCase();
@@ -496,10 +488,6 @@ function InteractiveShell() {
     textarea?.focus();
   });
 
-  const sidebarWidth = 45;
-  const mainWidth = () => dims().width - (wide() ? sidebarWidth : 0);
-  const scrollHeight = () => Math.max(dims().height - 6, 3);
-
   const t = theme;
 
   return (
@@ -507,134 +495,145 @@ function InteractiveShell() {
       width={dims().width}
       height={dims().height}
       backgroundColor={t().background}
-      flexDirection="column"
+      flexDirection="row"
     >
-      {/* ── Main row: content + sidebar ── */}
-      <box flexGrow={1} flexDirection="row">
-        {/* ── Main content column ── */}
-        <box
+      {/* ── Left side: Main content + Input + Hints ── */}
+      <box
+        flexGrow={1}
+        flexDirection="column"
+        height="100%"
+      >
+        {/* Messages area */}
+        <scrollbox
           flexGrow={1}
-          flexDirection="column"
           paddingLeft={3}
           paddingRight={3}
           paddingTop={2}
           paddingBottom={0}
-          gap={0}
         >
-          {/* Scrollable message area */}
-          <scrollbox
-            flexGrow={1}
-            height={scrollHeight()}
-          >
-            <box flexShrink={0} gap={1}>
-              <For each={entries()}>
-                {(entry) => {
-                  if (entry.type === 'separator') {
-                    return <text fg={t().border}>{'─'.repeat(mainWidth() - 6)}</text>;
-                  }
-                  if (entry.type === 'user') {
-                    return (
-                      <box
-                        border={['left']}
-                        borderColor={t().primary}
-                        paddingLeft={2}
-                        paddingTop={1}
-                        paddingBottom={1}
-                        marginTop={1}
-                        marginBottom={1}
-                        flexShrink={0}
-                      >
-                        <text fg={t().textStrong}>{entry.text}</text>
-                      </box>
-                    );
-                  }
+          <box flexShrink={0} gap={1}>
+            <For each={entries()}>
+              {(entry) => {
+                if (entry.type === 'separator') {
+                  return <box height={1} />;
+                }
+                if (entry.type === 'user') {
                   return (
-                    <box paddingLeft={3} paddingTop={0} paddingBottom={0} flexShrink={0}>
-                      <text fg={t().text}>{entry.text}</text>
+                    <box
+                      border={['left']}
+                      borderColor={t().primary}
+                      paddingLeft={2}
+                      paddingTop={1}
+                      paddingBottom={1}
+                      marginTop={1}
+                      marginBottom={1}
+                      flexShrink={0}
+                    >
+                      <text fg={t().textStrong}>{entry.text}</text>
                     </box>
                   );
-                }}
-              </For>
-            </box>
-          </scrollbox>
-        </box>
+                }
+                return (
+                  <box paddingLeft={3} paddingTop={0} paddingBottom={0} flexShrink={0}>
+                    <text fg={t().text}>{entry.text}</text>
+                  </box>
+                );
+              }}
+            </For>
+          </box>
+        </scrollbox>
 
-        {/* ── Right sidebar (only on wide terminals) ── */}
-        <Show when={wide()}>
-          <Sidebar commandCount={() => AVAILABLE_COMMANDS.length} theme={t()} />
+        {/* Suggestions bar */}
+        <Show when={suggestions().length > 0 && !cmdPaletteOpen()}>
+          <box
+            flexDirection="row"
+            flexWrap="wrap"
+            paddingLeft={3}
+            paddingTop={1}
+            paddingBottom={1}
+            gap={1}
+            flexShrink={0}
+            backgroundColor={t().backgroundPanel}
+          >
+            <For each={suggestions().slice(0, 6)}>
+              {(sug, i) => (
+                <box
+                  paddingLeft={1}
+                  paddingRight={1}
+                  paddingTop={0}
+                  paddingBottom={0}
+                  backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : t().backgroundPanel}
+                  onMouseUp={() => {
+                    textarea?.setText(sug.command);
+                    setInput(sug.command);
+                    setSuggestions([]);
+                  }}
+                >
+                  <text fg={i() === selectedSuggestion() ? t().primary : t().textWeak}>
+                    {sug.command}
+                  </text>
+                  <text fg={t().textMuted}>{' '}{sug.description}</text>
+                </box>
+              )}
+            </For>
+          </box>
         </Show>
-      </box>
 
-      {/* ── Suggestions bar (above input) ── */}
-      <Show when={suggestions().length > 0 && !cmdPaletteOpen()}>
+        {/* Input row with left border like opencode */}
         <box
           flexDirection="row"
-          flexWrap="wrap"
-          paddingLeft={3}
-          paddingTop={1}
-          paddingBottom={1}
-          gap={1}
           flexShrink={0}
-          backgroundColor={t().backgroundPanel}
+          paddingLeft={0}
+          paddingRight={0}
+          backgroundColor={t().background}
         >
-          <For each={suggestions().slice(0, 6)}>
-            {(sug, i) => (
-              <box
-                paddingLeft={1}
-                paddingRight={1}
-                paddingTop={0}
-                paddingBottom={0}
-                backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : t().backgroundPanel}
-                onMouseUp={() => {
-                  textarea?.setText(sug.command);
-                  setInput(sug.command);
-                  setSuggestions([]);
-                }}
-              >
-                <text fg={i() === selectedSuggestion() ? t().primary : t().textWeak}>
-                  {sug.command}
-                </text>
-                <text fg={t().textMuted}>{' '}{sug.description}</text>
-              </box>
-            )}
-          </For>
+          {/* Left border line */}
+          <box
+            width={1}
+            backgroundColor={t().primary}
+          />
+          {/* Input content */}
+          <box
+            flexGrow={1}
+            flexDirection="row"
+            paddingLeft={2}
+            paddingRight={3}
+            paddingTop={1}
+            paddingBottom={1}
+            gap={2}
+          >
+            <textarea
+              ref={(val: TextareaRenderable) => { textarea = val; }}
+              flexGrow={1}
+              height={1}
+              minHeight={1}
+              maxHeight={1}
+              placeholder="Type a /command or press Tab for suggestions..."
+              textColor={t().text}
+              focusedTextColor={t().textStrong}
+              cursorColor={t().interactive}
+              placeholderColor={t().textMuted}
+              onContentChange={() => {
+                const val = textarea?.plainText ?? '';
+                setInput(val);
+                updateSuggestions(val);
+              }}
+              onSubmit={() => {
+                void submitCommand(textarea?.plainText ?? '');
+              }}
+              keyBindings={[{ name: 'return', action: 'submit' }]}
+            />
+          </box>
         </box>
-      </Show>
 
-      {/* ── Input row (at bottom, full width) ── */}
-      <box
-        flexDirection="row"
-        flexShrink={0}
-        paddingLeft={3}
-        paddingRight={3}
-        paddingBottom={1}
-        paddingTop={1}
-        gap={2}
-        backgroundColor={t().backgroundPanel}
-      >
-        <text fg={t().interactive}>{'›'}</text>
-        <textarea
-          ref={(val: TextareaRenderable) => { textarea = val; }}
-          flexGrow={1}
-          height={1}
-          minHeight={1}
-          maxHeight={1}
-          placeholder="Type a /command or press Tab for suggestions..."
-          textColor={t().text}
-          focusedTextColor={t().textStrong}
-          cursorColor={t().interactive}
-          placeholderColor={t().textMuted}
-          onContentChange={() => {
-            const val = textarea?.plainText ?? '';
-            setInput(val);
-            updateSuggestions(val);
-          }}
-          onSubmit={() => {
-            void submitCommand(textarea?.plainText ?? '');
-          }}
-          keyBindings={[{ name: 'return', action: 'submit' }]}
-        />
+        {/* Keybind hints at bottom right */}
+        <KeybindHints theme={t()} />
       </box>
+
+      {/* ── Right sidebar (only on wide terminals) ── */}
+      <Show when={wide()}>
+        <Sidebar commandCount={() => AVAILABLE_COMMANDS.length} theme={t()} width={sidebarWidth} />
+      </Show>
 
       {/* ── Command palette overlay ── */}
       <Show when={cmdPaletteOpen()}>
@@ -714,9 +713,6 @@ function InteractiveShell() {
           </For>
         </box>
       </Show>
-
-      {/* ── Footer keybind bar ── */}
-      <FooterBar theme={t()} />
     </box>
   );
 }
