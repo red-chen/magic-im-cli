@@ -1,8 +1,10 @@
 import { render, useKeyboard, useTerminalDimensions, useRenderer } from '@opentui/solid';
-import { createSignal, For, Show, onMount, createMemo } from 'solid-js';
+import { createSignal, For, Show, onMount, createMemo, createResource } from 'solid-js';
 import type { KeyEvent, TextareaRenderable } from '@opentui/core';
 import { styles } from './ui.js';
-import { getTheme, setTheme, saveSnapshot } from './config.js';
+import { getTheme, setTheme, saveSnapshot, getToken } from './config.js';
+import { apiClient } from './api.js';
+import type { User, Agent } from '../types/index.js';
 
 // ─── Theme definitions (opencode) ─────────────────────────────────────────────
 // Based on opencode/packages/ui/src/theme/themes/opencode.json
@@ -200,9 +202,37 @@ interface OutputEntry {
   text: string;
 }
 
+// ─── Fetch user profile ───────────────────────────────────────────────────────
+async function fetchUserProfile(): Promise<User | null> {
+  try {
+    const token = getToken();
+    if (!token) return null;
+    const response = await apiClient.get<{ user: User }>('/auth/me');
+    return response.success ? response.data.user : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Fetch agent list ─────────────────────────────────────────────────────────
+async function fetchAgentList(): Promise<Agent[]> {
+  try {
+    const token = getToken();
+    if (!token) return [];
+    const response = await apiClient.get<Agent[]>('/agents');
+    return response.success ? response.data : [];
+  } catch {
+    return [];
+  }
+}
+
 // ─── Sidebar panel ────────────────────────────────────────────────────────────
 function Sidebar(props: { commandCount: () => number; theme: Theme; width: number }) {
   const t = () => props.theme;
+  const [user] = createResource(fetchUserProfile);
+  const [agents] = createResource(fetchAgentList);
+  const isAuthenticated = () => !!user() && !user.loading;
+
   return (
     <box
       backgroundColor={t().backgroundPanel}
@@ -222,6 +252,67 @@ function Sidebar(props: { commandCount: () => number; theme: Theme; width: numbe
             </text>
           </box>
 
+          {/* User Profile Section */}
+          <Show when={isAuthenticated()} fallback={
+            <box
+              backgroundColor={t().backgroundElement}
+              paddingTop={2}
+              paddingBottom={2}
+              paddingLeft={2}
+              paddingRight={2}
+              marginBottom={2}
+              border={['left']}
+              borderColor={t().textMuted}
+            >
+              <text fg={t().textMuted}>Not signed in</text>
+              <text fg={t().textWeak}>Use /auth sign-in</text>
+            </box>
+          }>
+            <box
+              backgroundColor={t().backgroundElement}
+              paddingTop={2}
+              paddingBottom={2}
+              paddingLeft={2}
+              paddingRight={2}
+              marginBottom={2}
+              border={['left']}
+              borderColor={t().primary}
+            >
+              <text fg={t().textStrong}><b>👤 {user()?.nickname}</b></text>
+              <text fg={t().textWeak}>{user()?.email}</text>
+            </box>
+          </Show>
+
+          {/* Agent List Section */}
+          <Show when={isAuthenticated()}>
+            <box marginBottom={1}>
+              <text fg={t().textStrong}><b>🤖 My Agents</b></text>
+            </box>
+            <Show when={agents() && agents()!.length > 0} fallback={
+              <box paddingLeft={1} marginBottom={2}>
+                <text fg={t().textMuted}>No agents yet</text>
+                <text fg={t().textWeak}>Use /agent create</text>
+              </box>
+            }>
+              <box gap={1} marginBottom={2}>
+                <For each={agents()}>
+                  {(agent) => (
+                    <box
+                      flexDirection="row"
+                      gap={1}
+                      paddingLeft={1}
+                      paddingTop={0}
+                      paddingBottom={0}
+                    >
+                      <text fg={t().success}>●</text>
+                      <text fg={t().text}>{agent.name}</text>
+                    </box>
+                  )}
+                </For>
+              </box>
+            </Show>
+          </Show>
+
           {/* Context info */}
           <box gap={1} marginBottom={2}>
             <text fg={t().textStrong}>
@@ -240,44 +331,46 @@ function Sidebar(props: { commandCount: () => number; theme: Theme; width: numbe
         </box>
       </scrollbox>
 
-      {/* Bottom: Getting started card */}
-      <box flexShrink={0} gap={2} paddingTop={2}>
-        <box
-          backgroundColor={t().backgroundElement}
-          paddingTop={2}
-          paddingBottom={2}
-          paddingLeft={2}
-          paddingRight={2}
-          flexDirection="row"
-          gap={1}
-          border={['left']}
-          borderColor={t().primary}
-        >
-          <text flexShrink={0} fg={t().primary}>◆</text>
-          <box flexGrow={1} gap={1}>
-            <box flexDirection="row" justifyContent="space-between">
-              <text fg={t().textStrong}><b>Getting started</b></text>
-            </box>
-            <text fg={t().textWeak}>Use /auth sign-in to authenticate.</text>
-            <text fg={t().textMuted}>
-              Then /agent list or /chat to get started.
-            </text>
-            <box flexDirection="row" gap={1} justifyContent="space-between" marginTop={1}>
-              <text fg={t().interactive}>Sign in</text>
-              <text fg={t().textMuted}>/auth sign-in</text>
+      {/* Bottom: Getting started card (only show when not authenticated) */}
+      <Show when={!isAuthenticated()}>
+        <box flexShrink={0} gap={2} paddingTop={2}>
+          <box
+            backgroundColor={t().backgroundElement}
+            paddingTop={2}
+            paddingBottom={2}
+            paddingLeft={2}
+            paddingRight={2}
+            flexDirection="row"
+            gap={1}
+            border={['left']}
+            borderColor={t().primary}
+          >
+            <text flexShrink={0} fg={t().primary}>◆</text>
+            <box flexGrow={1} gap={1}>
+              <box flexDirection="row" justifyContent="space-between">
+                <text fg={t().textStrong}><b>Getting started</b></text>
+              </box>
+              <text fg={t().textWeak}>Use /auth sign-in to authenticate.</text>
+              <text fg={t().textMuted}>
+                Then /agent list or /chat to get started.
+              </text>
+              <box flexDirection="row" gap={1} justifyContent="space-between" marginTop={1}>
+                <text fg={t().interactive}>Sign in</text>
+                <text fg={t().textMuted}>/auth sign-in</text>
+              </box>
             </box>
           </box>
-        </box>
 
-        {/* Version line */}
-        <text fg={t().textWeak}>
-          <span style={{ fg: t().success }}>●</span> <b>Magic</b>
-          <span style={{ fg: t().text }}>
-            <b>IM</b>
-          </span>{' '}
-          <span>1.0.0</span>
-        </text>
-      </box>
+          {/* Version line */}
+          <text fg={t().textWeak}>
+            <span style={{ fg: t().success }}>●</span> <b>Magic</b>
+            <span style={{ fg: t().text }}>
+              <b>IM</b>
+            </span>{' '}
+            <span>1.0.0</span>
+          </text>
+        </box>
+      </Show>
     </box>
   );
 }
