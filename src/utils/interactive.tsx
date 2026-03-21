@@ -212,8 +212,6 @@ function Sidebar(props: { commandCount: () => number; theme: Theme }) {
       paddingBottom={1}
       paddingLeft={3}
       paddingRight={3}
-      border={['left']}
-      borderColor={t().border}
     >
       <scrollbox flexGrow={1}>
         <box flexShrink={0} gap={2} paddingRight={1}>
@@ -296,9 +294,7 @@ function FooterBar(props: { theme: Theme }) {
       paddingRight={3}
       paddingTop={1}
       paddingBottom={1}
-      backgroundColor={t().backgroundPanel}
-      border={['top']}
-      borderColor={t().border}
+      backgroundColor={t().backgroundElement}
     >
       <text fg={t().textWeak}>magic-im interactive</text>
       <box flexDirection="row" gap={3}>
@@ -579,9 +575,7 @@ function InteractiveShell() {
           paddingBottom={1}
           gap={1}
           flexShrink={0}
-          backgroundColor={t().backgroundWeak}
-          border={['top']}
-          borderColor={t().border}
+          backgroundColor={t().backgroundPanel}
         >
           <For each={suggestions().slice(0, 6)}>
             {(sug, i) => (
@@ -590,7 +584,7 @@ function InteractiveShell() {
                 paddingRight={1}
                 paddingTop={0}
                 paddingBottom={0}
-                backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : undefined}
+                backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : t().backgroundPanel}
                 onMouseUp={() => {
                   textarea?.setText(sug.command);
                   setInput(sug.command);
@@ -616,9 +610,7 @@ function InteractiveShell() {
         paddingBottom={1}
         paddingTop={1}
         gap={2}
-        backgroundColor={t().background}
-        border={['top']}
-        borderColor={t().border}
+        backgroundColor={t().backgroundPanel}
       >
         <text fg={t().interactive}>{'›'}</text>
         <textarea
