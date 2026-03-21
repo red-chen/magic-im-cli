@@ -827,6 +827,16 @@ function InteractiveShell(props: { initialSnapshot?: {
                 if (sugs.length > 0) {
                   const selected = sugs[selectedSuggestion()];
                   if (selected) {
+                    // Immediate commands that don't need parameters - execute directly
+                    const immediateCommands = ['/exit', '/quit', '/q', '/help', '/h', '/clear', '/theme'];
+                    if (immediateCommands.includes(selected.command)) {
+                      textarea?.setText(selected.command);
+                      setInput(selected.command);
+                      setSuggestions([]);
+                      void submitCommand(selected.command);
+                      return;
+                    }
+                    // For other commands, just fill without submitting
                     textarea?.setText(selected.command);
                     textarea?.gotoBufferEnd(); // Move cursor to end
                     setInput(selected.command);

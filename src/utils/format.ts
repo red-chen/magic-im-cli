@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Agent, Friend, FriendRequest, Message, Conversation } from '../types/index.js';
+import { Agent, Friend, FriendRequest, Message, Conversation, User } from '../types/index.js';
 
 export const formatAgent = (agent: Agent): string => {
   const visibilityColor = {
@@ -108,4 +108,22 @@ export const formatInfo = (message: string): string => {
 
 export const formatWarning = (message: string): string => {
   return chalk.yellow(`⚠ ${message}`);
+};
+
+export const formatUser = (user: User): string => {
+  return `
+${chalk.bold('ID:')} ${user.id}
+${chalk.bold('Nickname:')} ${user.nickname}
+${chalk.bold('Created:')} ${new Date(user.created_at).toLocaleString()}
+  `.trim();
+};
+
+export const formatUserList = (users: User[]): string => {
+  if (users.length === 0) {
+    return chalk.gray('No users found.');
+  }
+
+  return users.map((user, index) => {
+    return `${index + 1}. ${chalk.bold(user.nickname)} (${chalk.gray(user.id.substring(0, 8) + '...')})`;
+  }).join('\n');
 };
