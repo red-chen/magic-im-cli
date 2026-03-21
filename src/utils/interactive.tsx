@@ -32,13 +32,13 @@ const themes = {
   // Light theme
   light: {
     background:        '#ffffff',
-    backgroundPanel:   '#f5f5f5',
+    backgroundPanel:   '#f8f8f8',
     backgroundElement: '#f0f0f0',
-    backgroundWeak:    '#fafafa',
+    backgroundWeak:    '#f5f5f5',
     text:              '#1a1a1a',
     textStrong:        '#000000',
-    textWeak:          '#8a8a8a',
-    textMuted:         '#a0a0a0',
+    textWeak:          '#666666',
+    textMuted:         '#888888',
     border:            '#e0e0e0',
     borderWeak:        '#f0f0f0',
     borderActive:      '#c0c0c0',
@@ -206,12 +206,12 @@ function Sidebar(props: { commandCount: () => number; theme: Theme }) {
   return (
     <box
       backgroundColor={t().backgroundPanel}
-      width={38}
+      width={45}
       height="100%"
       paddingTop={2}
       paddingBottom={1}
       paddingLeft={3}
-      paddingRight={2}
+      paddingRight={3}
       border={['left']}
       borderColor={t().border}
     >
@@ -500,7 +500,8 @@ function InteractiveShell() {
     textarea?.focus();
   });
 
-  const mainWidth = () => dims().width - (wide() ? 38 : 0);
+  const sidebarWidth = 45;
+  const mainWidth = () => dims().width - (wide() ? sidebarWidth : 0);
   const scrollHeight = () => Math.max(dims().height - 6, 3);
 
   const t = theme;
@@ -522,7 +523,7 @@ function InteractiveShell() {
           paddingRight={3}
           paddingTop={2}
           paddingBottom={0}
-          gap={1}
+          gap={0}
         >
           {/* Scrollable message area */}
           <scrollbox
@@ -560,86 +561,87 @@ function InteractiveShell() {
               </For>
             </box>
           </scrollbox>
-
-          {/* Suggestions bar (above input) */}
-          <Show when={suggestions().length > 0 && !cmdPaletteOpen()}>
-            <box
-              flexDirection="row"
-              flexWrap="wrap"
-              paddingLeft={1}
-              paddingTop={1}
-              paddingBottom={1}
-              gap={1}
-              flexShrink={0}
-              backgroundColor={t().backgroundWeak}
-              border={['top']}
-              borderColor={t().border}
-            >
-              <For each={suggestions().slice(0, 6)}>
-                {(sug, i) => (
-                  <box
-                    paddingLeft={1}
-                    paddingRight={1}
-                    paddingTop={0}
-                    paddingBottom={0}
-                    backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : undefined}
-                    onMouseUp={() => {
-                      textarea?.setText(sug.command);
-                      setInput(sug.command);
-                      setSuggestions([]);
-                    }}
-                  >
-                    <text fg={i() === selectedSuggestion() ? t().primary : t().textWeak}>
-                      {sug.command}
-                    </text>
-                    <text fg={t().textMuted}>{' '}{sug.description}</text>
-                  </box>
-                )}
-              </For>
-            </box>
-          </Show>
-
-          {/* Input row */}
-          <box
-            flexDirection="row"
-            flexShrink={0}
-            paddingLeft={2}
-            paddingRight={2}
-            paddingBottom={1}
-            paddingTop={1}
-            gap={2}
-            backgroundColor={t().backgroundPanel}
-            border={['top']}
-            borderColor={t().border}
-          >
-            <text fg={t().interactive}>{'›'}</text>
-            <textarea
-              ref={(val: TextareaRenderable) => { textarea = val; }}
-              flexGrow={1}
-              height={1}
-              minHeight={1}
-              maxHeight={1}
-              placeholder="Type a /command or press Tab for suggestions..."
-              textColor={t().text}
-              focusedTextColor={t().textStrong}
-              cursorColor={t().interactive}
-              onContentChange={() => {
-                const val = textarea?.plainText ?? '';
-                setInput(val);
-                updateSuggestions(val);
-              }}
-              onSubmit={() => {
-                void submitCommand(textarea?.plainText ?? '');
-              }}
-              keyBindings={[{ name: 'return', action: 'submit' }]}
-            />
-          </box>
         </box>
 
         {/* ── Right sidebar (only on wide terminals) ── */}
         <Show when={wide()}>
           <Sidebar commandCount={() => AVAILABLE_COMMANDS.length} theme={t()} />
         </Show>
+      </box>
+
+      {/* ── Suggestions bar (above input) ── */}
+      <Show when={suggestions().length > 0 && !cmdPaletteOpen()}>
+        <box
+          flexDirection="row"
+          flexWrap="wrap"
+          paddingLeft={3}
+          paddingTop={1}
+          paddingBottom={1}
+          gap={1}
+          flexShrink={0}
+          backgroundColor={t().backgroundWeak}
+          border={['top']}
+          borderColor={t().border}
+        >
+          <For each={suggestions().slice(0, 6)}>
+            {(sug, i) => (
+              <box
+                paddingLeft={1}
+                paddingRight={1}
+                paddingTop={0}
+                paddingBottom={0}
+                backgroundColor={i() === selectedSuggestion() ? t().backgroundElement : undefined}
+                onMouseUp={() => {
+                  textarea?.setText(sug.command);
+                  setInput(sug.command);
+                  setSuggestions([]);
+                }}
+              >
+                <text fg={i() === selectedSuggestion() ? t().primary : t().textWeak}>
+                  {sug.command}
+                </text>
+                <text fg={t().textMuted}>{' '}{sug.description}</text>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
+
+      {/* ── Input row (at bottom, full width) ── */}
+      <box
+        flexDirection="row"
+        flexShrink={0}
+        paddingLeft={3}
+        paddingRight={3}
+        paddingBottom={1}
+        paddingTop={1}
+        gap={2}
+        backgroundColor={t().background}
+        border={['top']}
+        borderColor={t().border}
+      >
+        <text fg={t().interactive}>{'›'}</text>
+        <textarea
+          ref={(val: TextareaRenderable) => { textarea = val; }}
+          flexGrow={1}
+          height={1}
+          minHeight={1}
+          maxHeight={1}
+          placeholder="Type a /command or press Tab for suggestions..."
+          textColor={t().text}
+          focusedTextColor={t().textStrong}
+          cursorColor={t().interactive}
+          placeholderColor={t().textMuted}
+          onContentChange={() => {
+            const val = textarea?.plainText ?? '';
+            setInput(val);
+            updateSuggestions(val);
+          }}
+          onSubmit={() => {
+            void submitCommand(textarea?.plainText ?? '');
+          }}
+          keyBindings={[{ name: 'return', action: 'submit' }]}
+        />
       </box>
 
       {/* ── Command palette overlay ── */}
