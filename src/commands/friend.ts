@@ -1,124 +1,151 @@
-import { Command } from 'commander';
-import ora from 'ora';
+import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
+import { UI, spinner } from '../utils/ui.js';
 import { formatSuccess, formatError, formatFriendList, formatFriendRequestList } from '../utils/format.js';
-import { Friend, FriendRequest } from '../types/index.js';
+import type { Friend, FriendRequest } from '../types/index.js';
 
-export const friendCommands = new Command('friend')
-  .description('Friend system commands');
-
-// Send friend request
-friendCommands
-  .command('add <target_full_name>')
-  .description('Send a friend request to an agent')
-  .action(async (targetFullName: string) => {
+// ─── friend add ──────────────────────────────────────────────────────────────
+const friendAdd: CommandModule<{}, { target_full_name: string }> = {
+  command: 'add <target_full_name>',
+  describe: 'Send a friend request to an agent',
+  builder: (yargs) =>
+    yargs.positional('target_full_name', {
+      type: 'string',
+      demandOption: true,
+      description: 'Target agent full name (e.g., AgentName#UserName)',
+    }),
+  handler: async (argv) => {
+    const stop = spinner('Sending friend request...');
     try {
-      const spinner = ora('Sending friend request...').start();
       const response = await apiClient.post<Friend>('/friends/request', {
-        target_full_name: targetFullName,
+        target_full_name: argv.target_full_name,
       });
-      spinner.stop();
-
+      stop();
       if (response.success) {
-        console.log(formatSuccess(`Friend request sent to ${targetFullName}!`));
+        UI.println(formatSuccess(`Friend request sent to ${argv.target_full_name}!`));
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to send friend request'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to send friend request') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Get pending requests
-friendCommands
-  .command('requests')
-  .description('List pending friend requests')
-  .action(async () => {
+// ─── friend requests ─────────────────────────────────────────────────────────
+const friendRequests: CommandModule = {
+  command: 'requests',
+  describe: 'List pending friend requests',
+  handler: async () => {
+    const stop = spinner('Loading friend requests...');
     try {
-      const spinner = ora('Loading friend requests...').start();
-      const response = await apiClient.get<(FriendRequest & { requester_full_name?: string; target_full_name?: string })[]>('/friends/requests');
-      spinner.stop();
-
+      const response = await apiClient.get<(FriendRequest & { requester_full_name?: string; target_full_name?: string })[]>(
+        '/friends/requests',
+      );
+      stop();
       if (response.success) {
-        console.log(formatFriendRequestList(response.data));
+        UI.println(formatFriendRequestList(response.data));
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to load friend requests'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to load friend requests') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Accept friend request
-friendCommands
-  .command('accept <request_id>')
-  .description('Accept a friend request')
-  .action(async (requestId: string) => {
+// ─── friend accept ───────────────────────────────────────────────────────────
+const friendAccept: CommandModule<{}, { request_id: string }> = {
+  command: 'accept <request_id>',
+  describe: 'Accept a friend request',
+  builder: (yargs) =>
+    yargs.positional('request_id', { type: 'string', demandOption: true, description: 'Request ID' }),
+  handler: async (argv) => {
+    const stop = spinner('Accepting friend request...');
     try {
-      const spinner = ora('Accepting friend request...').start();
-      const response = await apiClient.post<Friend>(`/friends/accept/${requestId}`);
-      spinner.stop();
-
-      if (response.success) {
-        console.log(formatSuccess('Friend request accepted!'));
-      }
+      const response = await apiClient.post<Friend>(`/friends/accept/${argv.request_id}`);
+      stop();
+      if (response.success) UI.println(formatSuccess('Friend request accepted!'));
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to accept friend request'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to accept friend request') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Reject friend request
-friendCommands
-  .command('reject <request_id>')
-  .description('Reject a friend request')
-  .action(async (requestId: string) => {
+// ─── friend reject ───────────────────────────────────────────────────────────
+const friendReject: CommandModule<{}, { request_id: string }> = {
+  command: 'reject <request_id>',
+  describe: 'Reject a friend request',
+  builder: (yargs) =>
+    yargs.positional('request_id', { type: 'string', demandOption: true, description: 'Request ID' }),
+  handler: async (argv) => {
+    const stop = spinner('Rejecting friend request...');
     try {
-      const spinner = ora('Rejecting friend request...').start();
-      const response = await apiClient.post<Friend>(`/friends/reject/${requestId}`);
-      spinner.stop();
-
-      if (response.success) {
-        console.log(formatSuccess('Friend request rejected!'));
-      }
+      const response = await apiClient.post<Friend>(`/friends/reject/${argv.request_id}`);
+      stop();
+      if (response.success) UI.println(formatSuccess('Friend request rejected!'));
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to reject friend request'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to reject friend request') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// List friends
-friendCommands
-  .command('list')
-  .description('List all friends')
-  .action(async () => {
+// ─── friend list ─────────────────────────────────────────────────────────────
+const friendList: CommandModule = {
+  command: 'list',
+  describe: 'List all friends',
+  handler: async () => {
+    const stop = spinner('Loading friends...');
     try {
-      const spinner = ora('Loading friends...').start();
       const response = await apiClient.get<Friend[]>('/friends');
-      spinner.stop();
-
-      if (response.success) {
-        console.log(formatFriendList(response.data));
-      }
+      stop();
+      if (response.success) UI.println(formatFriendList(response.data));
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to load friends'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to load friends') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Remove friend
-friendCommands
-  .command('remove <friend_id>')
-  .description('Remove a friend')
-  .action(async (friendId: string) => {
+// ─── friend remove ───────────────────────────────────────────────────────────
+const friendRemove: CommandModule<{}, { friend_id: string }> = {
+  command: 'remove <friend_id>',
+  describe: 'Remove a friend',
+  builder: (yargs) =>
+    yargs.positional('friend_id', { type: 'string', demandOption: true, description: 'Friend ID' }),
+  handler: async (argv) => {
+    const stop = spinner('Removing friend...');
     try {
-      const spinner = ora('Removing friend...').start();
-      await apiClient.delete(`/friends/${friendId}`);
-      spinner.stop();
-
-      console.log(formatSuccess('Friend removed successfully!'));
+      await apiClient.delete(`/friends/${argv.friend_id}`);
+      stop();
+      UI.println(formatSuccess('Friend removed successfully!'));
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to remove friend'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to remove friend') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
+
+// ─── friend group ────────────────────────────────────────────────────────────
+const friendCommands: CommandModule = {
+  command: 'friend <command>',
+  describe: 'Friend system commands',
+  builder: (yargs) =>
+    yargs
+      .command(friendAdd)
+      .command(friendRequests)
+      .command(friendAccept)
+      .command(friendReject)
+      .command(friendList)
+      .command(friendRemove)
+      .demandCommand(1, 'Please specify a friend sub-command'),
+  handler: () => {},
+};
 
 export default friendCommands;

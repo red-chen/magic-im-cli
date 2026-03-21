@@ -1,142 +1,172 @@
-import { Command } from 'commander';
-import ora from 'ora';
+import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
-import { formatSuccess, formatError, formatMessage, formatConversationList } from '../utils/format.js';
-import { Message, Conversation } from '../types/index.js';
+import { UI, spinner } from '../utils/ui.js';
+import {
+  formatSuccess,
+  formatError,
+  formatMessage,
+  formatConversationList,
+} from '../utils/format.js';
+import type { Message, Conversation } from '../types/index.js';
 
-export const messageCommands = new Command('message')
-  .description('Message commands');
-
-// Send message
-messageCommands
-  .command('send')
-  .description('Send a message to an agent')
-  .option('-r, --receiver-id <id>', 'Receiver agent ID')
-  .option('-f, --receiver-full-name <name>', 'Receiver full name (e.g., AgentName#UserName)')
-  .option('-c, --content <content>', 'Message content')
-  .action(async (options) => {
+// ─── message send ────────────────────────────────────────────────────────────
+const messageSend: CommandModule<
+  {},
+  { 'receiver-id'?: string; 'receiver-full-name'?: string; content: string }
+> = {
+  command: 'send',
+  describe: 'Send a message to an agent',
+  builder: (yargs) =>
+    yargs
+      .option('receiver-id', { alias: 'r', type: 'string', description: 'Receiver agent ID' })
+      .option('receiver-full-name', {
+        alias: 'f',
+        type: 'string',
+        description: 'Receiver full name (e.g., AgentName#UserName)',
+      })
+      .option('content', { alias: 'c', type: 'string', demandOption: true, description: 'Message content' })
+      .check((argv) => {
+        if (!argv['receiver-id'] && !argv['receiver-full-name']) {
+          throw new Error('Either --receiver-id or --receiver-full-name must be provided');
+        }
+        return true;
+      }),
+  handler: async (argv) => {
+    const stop = spinner('Sending message...');
     try {
-      const { receiverId, receiverFullName, content } = options;
-
-      if (!receiverId && !receiverFullName) {
-        console.error(formatError('Either --receiver-id or --receiver-full-name must be provided'));
-        process.exit(1);
-      }
-
-      if (!content) {
-        console.error(formatError('Message content is required (--content)'));
-        process.exit(1);
-      }
-
-      const spinner = ora('Sending message...').start();
       const response = await apiClient.post<{ message: Message; conversation: Conversation }>('/messages', {
-        receiver_id: receiverId,
-        receiver_full_name: receiverFullName,
-        content,
+        receiver_id: argv['receiver-id'],
+        receiver_full_name: argv['receiver-full-name'],
+        content: argv.content,
       });
-      spinner.stop();
-
-      if (response.success) {
-        console.log(formatSuccess('Message sent successfully!'));
-      }
+      stop();
+      if (response.success) UI.println(formatSuccess('Message sent successfully!'));
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to send message'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to send message') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Poll messages
-messageCommands
-  .command('poll')
-  .description('Poll for new messages')
-  .option('-l, --last-message-id <id>', 'Last message ID for pagination')
-  .option('-n, --limit <number>', 'Number of messages to fetch', '50')
-  .action(async (options) => {
+// ─── message poll ────────────────────────────────────────────────────────────
+const messagePoll: CommandModule<{}, { 'last-message-id'?: string; limit: number }> = {
+  command: 'poll',
+  describe: 'Poll for new messages',
+  builder: (yargs) =>
+    yargs
+      .option('last-message-id', { alias: 'l', type: 'string', description: 'Last message ID for pagination' })
+      .option('limit', { alias: 'n', type: 'number', default: 50, description: 'Number of messages to fetch' }),
+  handler: async (argv) => {
+    const params = new URLSearchParams();
+    if (argv['last-message-id']) params.append('last_message_id', argv['last-message-id']);
+    params.append('limit', String(argv.limit));
+
+    const stop = spinner('Fetching messages...');
     try {
-      const { lastMessageId, limit } = options;
-
-      const params = new URLSearchParams();
-      if (lastMessageId) params.append('last_message_id', lastMessageId);
-      params.append('limit', limit);
-
-      const spinner = ora('Fetching messages...').start();
-      const response = await apiClient.get<{ messages: Message[]; has_more: boolean }>(`/messages/poll?${params.toString()}`);
-      spinner.stop();
-
+      const response = await apiClient.get<{ messages: Message[]; has_more: boolean }>(
+        `/messages/poll?${params.toString()}`,
+      );
+      stop();
       if (response.success) {
         if (response.data.messages.length === 0) {
-          console.log(formatSuccess('No new messages.'));
+          UI.println(formatSuccess('No new messages.'));
         } else {
-          console.log(formatSuccess(`Found ${response.data.messages.length} message(s):`));
-          response.data.messages.forEach((msg) => {
-            console.log(formatMessage(msg));
-          });
+          UI.println(formatSuccess(`Found ${response.data.messages.length} message(s):`));
+          response.data.messages.forEach((msg) => UI.println(formatMessage(msg)));
           if (response.data.has_more) {
-            console.log(formatSuccess('\nMore messages available. Use --last-message-id to fetch more.'));
+            UI.println(formatSuccess('\nMore messages available. Use --last-message-id to fetch more.'));
           }
         }
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to poll messages'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to poll messages') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-const conversationCommands = new Command('conversation')
-  .description('Conversation commands');
+// ─── message group ───────────────────────────────────────────────────────────
+export const messageCommands: CommandModule = {
+  command: 'message <command>',
+  describe: 'Message commands',
+  builder: (yargs) =>
+    yargs
+      .command(messageSend)
+      .command(messagePoll)
+      .demandCommand(1, 'Please specify a message sub-command'),
+  handler: () => {},
+};
 
-// List conversations
-conversationCommands
-  .command('list')
-  .description('List all conversations')
-  .action(async () => {
+// ─── conversation list ───────────────────────────────────────────────────────
+const conversationList: CommandModule = {
+  command: 'list',
+  describe: 'List all conversations',
+  handler: async () => {
+    const stop = spinner('Loading conversations...');
     try {
-      const spinner = ora('Loading conversations...').start();
-      const response = await apiClient.get<(Conversation & { other_party_name?: string; last_message?: string })[]>('/messages/conversations');
-      spinner.stop();
-
-      if (response.success) {
-        console.log(formatConversationList(response.data));
-      }
+      const response = await apiClient.get<
+        (Conversation & { other_party_name?: string; last_message?: string })[]
+      >('/messages/conversations');
+      stop();
+      if (response.success) UI.println(formatConversationList(response.data));
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to load conversations'));
+      stop();
+      process.stderr.write(
+        formatError(error instanceof Error ? error.message : 'Failed to load conversations') + '\n',
+      );
       process.exit(1);
     }
-  });
+  },
+};
 
-// Get messages in conversation
-conversationCommands
-  .command('messages <conversation_id>')
-  .description('Get messages in a conversation')
-  .option('-p, --page <number>', 'Page number', '1')
-  .option('-s, --page-size <number>', 'Page size', '50')
-  .action(async (conversationId: string, options) => {
+// ─── conversation messages ───────────────────────────────────────────────────
+const conversationMessages: CommandModule<{}, { conversation_id: string; page: number; 'page-size': number }> = {
+  command: 'messages <conversation_id>',
+  describe: 'Get messages in a conversation',
+  builder: (yargs) =>
+    yargs
+      .positional('conversation_id', { type: 'string', demandOption: true, description: 'Conversation ID' })
+      .option('page', { alias: 'p', type: 'number', default: 1, description: 'Page number' })
+      .option('page-size', { alias: 's', type: 'number', default: 50, description: 'Page size' }),
+  handler: async (argv) => {
+    const params = new URLSearchParams();
+    params.append('page', String(argv.page));
+    params.append('page_size', String(argv['page-size']));
+
+    const stop = spinner('Loading messages...');
     try {
-      const { page, pageSize } = options;
-
-      const params = new URLSearchParams();
-      params.append('page', page);
-      params.append('page_size', pageSize);
-
-      const spinner = ora('Loading messages...').start();
-      const response = await apiClient.get<Message[]>(`/messages/conversations/${conversationId}/messages?${params.toString()}`);
-      spinner.stop();
-
+      const response = await apiClient.get<Message[]>(
+        `/messages/conversations/${argv.conversation_id}/messages?${params.toString()}`,
+      );
+      stop();
       if (response.success) {
         if (response.data.length === 0) {
-          console.log(formatSuccess('No messages in this conversation.'));
+          UI.println(formatSuccess('No messages in this conversation.'));
         } else {
-          console.log(formatSuccess(`Found ${response.data.length} message(s):`));
-          response.data.forEach((msg) => {
-            console.log(formatMessage(msg));
-          });
+          UI.println(formatSuccess(`Found ${response.data.length} message(s):`));
+          response.data.forEach((msg) => UI.println(formatMessage(msg)));
         }
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to load messages'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to load messages') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-export { conversationCommands };
+// ─── conversation group ──────────────────────────────────────────────────────
+export const conversationCommands: CommandModule = {
+  command: 'conversation <command>',
+  describe: 'Conversation commands',
+  builder: (yargs) =>
+    yargs
+      .command(conversationList)
+      .command(conversationMessages)
+      .demandCommand(1, 'Please specify a conversation sub-command'),
+  handler: () => {},
+};
+
 export default messageCommands;

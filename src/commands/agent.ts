@@ -1,196 +1,190 @@
-import { Command } from 'commander';
-import inquirer from 'inquirer';
-import ora from 'ora';
-import chalk from 'chalk';
+import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
-import { Agent } from '../types/index.js';
-import { 
-  styles, 
-  createBox, 
-  createSuccessBox, 
-  createErrorBox,
-  createAgentTable,
-  sectionHeader,
-  divider,
-} from '../utils/ui.js';
+import { UI, spinner, createAgentTable, createSuccessBox, createErrorBox, sectionHeader, divider } from '../utils/ui.js';
 import { t } from '../utils/i18n.js';
 import { isJsonMode } from '../index.js';
+import type { Agent } from '../types/index.js';
 
-export const agentCommands = new Command('agent')
-  .description('Agent management commands');
+const VISIBILITY_MAP: Record<string, string> = {
+  public: 'PUBLIC',
+  'semi-public': 'SEMI_PUBLIC',
+  'friends-only': 'FRIENDS_ONLY',
+  private: 'PRIVATE',
+};
 
-// Create agent
-agentCommands
-  .command('create')
-  .description('Create a new agent')
-  .option('-n, --name <name>', 'Agent name')
-  .option('-v, --visibility <visibility>', 'Visibility (public, semi-public, friends-only, private)', 'public')
-  .action(async (options) => {
+// ─── agent create ────────────────────────────────────────────────────────────
+const agentCreate: CommandModule<{}, { name: string; visibility: string }> = {
+  command: 'create',
+  describe: 'Create a new agent',
+  builder: (yargs) =>
+    yargs
+      .option('name', { alias: 'n', type: 'string', demandOption: true, description: 'Agent name' })
+      .option('visibility', {
+        alias: 'v',
+        type: 'string',
+        default: 'public',
+        choices: ['public', 'semi-public', 'friends-only', 'private'],
+        description: 'Visibility',
+      }),
+  handler: async (argv) => {
+    const stop = spinner('Creating agent...');
     try {
-      let { name, visibility } = options;
-
-      if (!name) {
-        const answer = await inquirer.prompt([{
-          type: 'input',
-          name: 'name',
-          message: 'Agent name:',
-          validate: (input) => input.length > 0 || 'Name is required',
-        }]);
-        name = answer.name;
-      }
-
-      // Map visibility options
-      const visibilityMap: Record<string, string> = {
-        'public': 'PUBLIC',
-        'semi-public': 'SEMI_PUBLIC',
-        'friends-only': 'FRIENDS_ONLY',
-        'private': 'PRIVATE',
-      };
-
-      const apiVisibility = visibilityMap[visibility.toLowerCase()] || 'PUBLIC';
-
-      const spinner = ora('Creating agent...').start();
       const response = await apiClient.post<Agent>('/agents', {
-        name,
-        visibility: apiVisibility,
+        name: argv.name,
+        visibility: VISIBILITY_MAP[argv.visibility.toLowerCase()] ?? 'PUBLIC',
       });
-      spinner.stop();
-
+      stop();
       if (response.success) {
         sectionHeader(t('agentCreated'));
-        console.log(createAgentTable([response.data]));
+        UI.println(createAgentTable([response.data]));
         divider();
       }
     } catch (error) {
-      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to create agent')));
+      stop();
+      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to create agent')));
       process.exit(1);
     }
-  });
+  },
+};
 
-// List agents
-agentCommands
-  .command('list')
-  .description('List all your agents')
-  .action(async () => {
+// ─── agent list ──────────────────────────────────────────────────────────────
+const agentList: CommandModule = {
+  command: 'list',
+  describe: 'List all your agents',
+  handler: async () => {
+    const stop = spinner(t('agentList'));
     try {
-      const spinner = ora({ text: chalk.cyan(t('agentList')), spinner: 'dots' }).start();
       const response = await apiClient.get<Agent[]>('/agents');
-      spinner.stop();
-
+      stop();
       if (response.success) {
         if (isJsonMode) {
-          console.log(JSON.stringify({ success: true, data: response.data }));
+          process.stdout.write(JSON.stringify({ success: true, data: response.data }) + '\n');
         } else {
           sectionHeader(t('agentList'));
-          console.log(createAgentTable(response.data));
+          UI.println(createAgentTable(response.data));
           divider();
         }
       }
     } catch (error) {
+      stop();
       if (isJsonMode) {
-        console.log(JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Failed to list agents' }));
+        process.stdout.write(
+          JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Failed to list agents' }) +
+            '\n',
+        );
       } else {
-        console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to list agents')));
+        UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to list agents')));
       }
       process.exit(1);
     }
-  });
+  },
+};
 
-// Get agent details
-agentCommands
-  .command('get <agent_id>')
-  .description('Get agent details')
-  .action(async (agentId: string) => {
+// ─── agent get ───────────────────────────────────────────────────────────────
+const agentGet: CommandModule<{}, { agent_id: string }> = {
+  command: 'get <agent_id>',
+  describe: 'Get agent details',
+  builder: (yargs) =>
+    yargs.positional('agent_id', { type: 'string', demandOption: true, description: 'Agent ID' }),
+  handler: async (argv) => {
+    const stop = spinner('Loading agent...');
     try {
-      const spinner = ora({ text: chalk.cyan('Loading agent...'), spinner: 'dots' }).start();
-      const response = await apiClient.get<Agent>(`/agents/${agentId}`);
-      spinner.stop();
-
+      const response = await apiClient.get<Agent>(`/agents/${argv.agent_id}`);
+      stop();
       if (response.success) {
         sectionHeader('Agent Details');
-        console.log(createAgentTable([response.data]));
+        UI.println(createAgentTable([response.data]));
         divider();
       }
     } catch (error) {
-      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to get agent')));
+      stop();
+      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to get agent')));
       process.exit(1);
     }
-  });
+  },
+};
 
-// Update agent
-agentCommands
-  .command('update <agent_id>')
-  .description('Update an agent')
-  .option('-n, --name <name>', 'New agent name')
-  .option('-v, --visibility <visibility>', 'New visibility (public, semi-public, friends-only, private)')
-  .action(async (agentId: string, options) => {
+// ─── agent update ────────────────────────────────────────────────────────────
+const agentUpdate: CommandModule<{}, { agent_id: string; name?: string; visibility?: string }> = {
+  command: 'update <agent_id>',
+  describe: 'Update an agent',
+  builder: (yargs) =>
+    yargs
+      .positional('agent_id', { type: 'string', demandOption: true, description: 'Agent ID' })
+      .option('name', { alias: 'n', type: 'string', description: 'New agent name' })
+      .option('visibility', {
+        alias: 'v',
+        type: 'string',
+        choices: ['public', 'semi-public', 'friends-only', 'private'],
+        description: 'New visibility',
+      }),
+  handler: async (argv) => {
+    const updates: { name?: string; visibility?: string } = {};
+    if (argv.name) updates.name = argv.name;
+    if (argv.visibility) updates.visibility = VISIBILITY_MAP[argv.visibility.toLowerCase()];
+
+    if (Object.keys(updates).length === 0) {
+      UI.println(createErrorBox(UI.error('No updates provided')));
+      process.exit(1);
+    }
+
+    const stop = spinner('Updating agent...');
     try {
-      const updates: { name?: string; visibility?: string } = {};
-
-      if (options.name) {
-        updates.name = options.name;
-      }
-
-      if (options.visibility) {
-        const visibilityMap: Record<string, string> = {
-          'public': 'PUBLIC',
-          'semi-public': 'SEMI_PUBLIC',
-          'friends-only': 'FRIENDS_ONLY',
-          'private': 'PRIVATE',
-        };
-        updates.visibility = visibilityMap[options.visibility.toLowerCase()];
-      }
-
-      if (Object.keys(updates).length === 0) {
-        console.log(createErrorBox(styles.error('No updates provided')));
-        process.exit(1);
-      }
-
-      const spinner = ora({ text: chalk.cyan('Updating agent...'), spinner: 'dots' }).start();
-      const response = await apiClient.patch<Agent>(`/agents/${agentId}`, updates);
-      spinner.stop();
-
+      const response = await apiClient.patch<Agent>(`/agents/${argv.agent_id}`, updates);
+      stop();
       if (response.success) {
         sectionHeader(t('agentUpdated'));
-        console.log(createAgentTable([response.data]));
+        UI.println(createAgentTable([response.data]));
         divider();
       }
     } catch (error) {
-      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to update agent')));
+      stop();
+      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to update agent')));
       process.exit(1);
     }
-  });
+  },
+};
 
-// Delete agent
-agentCommands
-  .command('delete <agent_id>')
-  .description('Delete an agent')
-  .option('-f, --force', 'Force deletion without confirmation')
-  .action(async (agentId: string, options) => {
+// ─── agent delete ────────────────────────────────────────────────────────────
+const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
+  command: 'delete <agent_id>',
+  describe: 'Delete an agent',
+  builder: (yargs) =>
+    yargs
+      .positional('agent_id', { type: 'string', demandOption: true, description: 'Agent ID' })
+      .option('force', { alias: 'f', type: 'boolean', default: false, description: 'Confirm deletion' }),
+  handler: async (argv) => {
+    if (!argv.force) {
+      UI.println(createErrorBox(UI.error('Use --force to confirm deletion')));
+      process.exit(1);
+    }
+
+    const stop = spinner('Deleting agent...');
     try {
-      if (!options.force) {
-        const answer = await inquirer.prompt([{
-          type: 'confirm',
-          name: 'confirm',
-          message: chalk.yellow(`⚠ Are you sure you want to delete agent ${agentId}?`),
-          default: false,
-        }]);
-
-        if (!answer.confirm) {
-          console.log(styles.dim('Deletion cancelled'));
-          return;
-        }
-      }
-
-      const spinner = ora({ text: chalk.cyan('Deleting agent...'), spinner: 'dots' }).start();
-      await apiClient.delete(`/agents/${agentId}`);
-      spinner.stop();
-
-      console.log(createSuccessBox(styles.success(t('agentDeleted'))));
+      await apiClient.delete(`/agents/${argv.agent_id}`);
+      stop();
+      UI.println(createSuccessBox(UI.success(t('agentDeleted'))));
     } catch (error) {
-      console.log(createErrorBox(styles.error(error instanceof Error ? error.message : 'Failed to delete agent')));
+      stop();
+      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to delete agent')));
       process.exit(1);
     }
-  });
+  },
+};
+
+// ─── agent group ─────────────────────────────────────────────────────────────
+const agentCommands: CommandModule = {
+  command: 'agent <command>',
+  describe: 'Agent management commands',
+  builder: (yargs) =>
+    yargs
+      .command(agentCreate)
+      .command(agentList)
+      .command(agentGet)
+      .command(agentUpdate)
+      .command(agentDelete)
+      .demandCommand(1, 'Please specify an agent sub-command'),
+  handler: () => {},
+};
 
 export default agentCommands;

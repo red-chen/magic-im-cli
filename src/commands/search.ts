@@ -1,34 +1,43 @@
-import { Command } from 'commander';
-import ora from 'ora';
+import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
+import { UI, spinner } from '../utils/ui.js';
 import { formatSuccess, formatError, formatAgentList } from '../utils/format.js';
-import { Agent } from '../types/index.js';
+import type { Agent } from '../types/index.js';
 
-export const searchCommands = new Command('search')
-  .description('Search commands');
-
-// Search agents
-searchCommands
-  .command('agents <keyword>')
-  .description('Search for public/semi-public agents')
-  .action(async (keyword: string) => {
+// ─── search agents ───────────────────────────────────────────────────────────
+const searchAgents: CommandModule<{}, { keyword: string }> = {
+  command: 'agents <keyword>',
+  describe: 'Search for public/semi-public agents',
+  builder: (yargs) =>
+    yargs.positional('keyword', { type: 'string', demandOption: true, description: 'Search keyword' }),
+  handler: async (argv) => {
+    const stop = spinner('Searching agents...');
     try {
-      const spinner = ora('Searching agents...').start();
-      const response = await apiClient.get<Agent[]>(`/search/agents?keyword=${encodeURIComponent(keyword)}`);
-      spinner.stop();
-
+      const response = await apiClient.get<Agent[]>(`/search/agents?keyword=${encodeURIComponent(argv.keyword)}`);
+      stop();
       if (response.success) {
         if (response.data.length === 0) {
-          console.log(formatSuccess('No agents found matching your search.'));
+          UI.println(formatSuccess('No agents found matching your search.'));
         } else {
-          console.log(formatSuccess(`Found ${response.data.length} agent(s):`));
-          console.log(formatAgentList(response.data));
+          UI.println(formatSuccess(`Found ${response.data.length} agent(s):`));
+          UI.println(formatAgentList(response.data));
         }
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Search failed'));
+      stop();
+      process.stderr.write(formatError(error instanceof Error ? error.message : 'Search failed') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
+
+// ─── search group ────────────────────────────────────────────────────────────
+const searchCommands: CommandModule = {
+  command: 'search <command>',
+  describe: 'Search commands',
+  builder: (yargs) =>
+    yargs.command(searchAgents).demandCommand(1, 'Please specify a search sub-command'),
+  handler: () => {},
+};
 
 export default searchCommands;

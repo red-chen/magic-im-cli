@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander';
-import chalk from 'chalk';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -11,21 +11,25 @@ import authCommands from './commands/auth.js';
 import agentCommands from './commands/agent.js';
 import friendCommands from './commands/friend.js';
 import searchCommands from './commands/search.js';
-import messageCommands, { conversationCommands } from './commands/message.js';
+import { messageCommands, conversationCommands } from './commands/message.js';
 import chatCommand from './commands/chat.js';
 import { checkFirstRun } from './utils/first-run.js';
-import { showWelcomeBanner, divider, styles } from './utils/ui.js';
+import { showWelcomeBanner, UI } from './utils/ui.js';
 import { startInteractiveMode } from './utils/interactive.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Read package.json for version
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8')) as {
+  version: string;
+};
 
 // Global JSON output mode for Agent integration
 export let isJsonMode = false;
-export const setJsonMode = (value: boolean) => { isJsonMode = value; };
+export const setJsonMode = (value: boolean) => {
+  isJsonMode = value;
+};
 
 async function main() {
   // Check for JSON mode from environment or args
@@ -33,67 +37,68 @@ async function main() {
     setJsonMode(true);
   }
 
-  // Check for non-interactive mode
-  const hasNoInteractiveFlag = process.argv.includes('--no-interactive') || process.argv.includes('-n');
-  const hasCommand = process.argv.slice(2).some(arg => !arg.startsWith('-'));
+  // Detect interactive mode: no positional command arg → interactive
+  const nonFlagArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('-'));
+  const hasCommand = nonFlagArgs.length > 0;
 
   // Check if this is the first run and prompt for language
   await checkFirstRun();
 
-  const program = new Command();
-
-  program
-    .name('magic-im')
-    .description('Magic IM CLI - AI Agent era instant messaging system')
-    .version(packageJson.version)
-    .option('--json', 'Output in JSON format for Agent integration', () => {
-      setJsonMode(true);
-    })
-    .option('-n, --no-interactive', 'Run in non-interactive mode (command mode)');
-
-  // Add commands
-  program.addCommand(configCommands);
-  program.addCommand(authCommands);
-  program.addCommand(agentCommands);
-  program.addCommand(friendCommands);
-  program.addCommand(searchCommands);
-  program.addCommand(messageCommands);
-  program.addCommand(conversationCommands);
-  program.addCommand(chatCommand);
-
-  // Default help
-  program.on('--help', () => {
-    console.log('');
-    divider();
-    console.log(styles.bold('📚 Quick Examples:'));
-    console.log('');
-    console.log(`  ${styles.code('magic-im auth sign-up')}           ${styles.dim('# Create a new account')}`);
-    console.log(`  ${styles.code('magic-im agent create')}           ${styles.dim('# Create an AI agent')}`);
-    console.log(`  ${styles.code('magic-im friend add Agent#User')}  ${styles.dim('# Send friend request')}`);
-    console.log(`  ${styles.code('magic-im chat Agent#User')}        ${styles.dim('# Start chatting')}`);
-    console.log('');
-    divider();
-  });
-
-  // Determine mode: if no command provided and not in non-interactive mode, start interactive mode
-  const shouldRunInteractive = !hasCommand && !hasNoInteractiveFlag;
-
-  if (shouldRunInteractive) {
-    // Start interactive mode directly without parsing
-    await startInteractiveMode(program);
-  } else {
-    // Parse arguments for non-interactive mode
-    program.parse();
-
-    // Show help if no command provided in non-interactive mode
-    if (!hasCommand) {
-      showWelcomeBanner();
-      program.outputHelp();
-    }
+  if (!hasCommand) {
+    // Interactive mode: no command provided, launch TUI shell
+    showWelcomeBanner();
+    await startInteractiveMode();
+    return;
   }
+
+  // Non-interactive: parse and dispatch via yargs
+  const cli = yargs(hideBin(process.argv))
+    .scriptName('magic-im')
+    .wrap(100)
+    .help('help', 'show help')
+    .alias('help', 'h')
+    .version('version', 'show version', packageJson.version)
+    .alias('version', 'v')
+    .option('json', {
+      type: 'boolean' as const,
+      description: 'Output in JSON format for Agent integration',
+    })
+    .middleware((argv) => {
+      if (argv.json) setJsonMode(true);
+    })
+    .command(configCommands)
+    .command(authCommands)
+    .command(agentCommands)
+    .command(friendCommands)
+    .command(searchCommands)
+    .command(messageCommands)
+    .command(conversationCommands)
+    .command(chatCommand)
+    .epilog(
+      [
+        'Quick Examples:',
+        '  magic-im auth sign-up -e a@b.com -n Tom -p pass',
+        '  magic-im agent create -n MyBot -v public',
+        '  magic-im friend add Agent#User',
+        '  magic-im chat Agent#User',
+        '',
+        'Run without a command to enter interactive mode.',
+      ].join('\n'),
+    )
+    .fail((msg, err) => {
+      if (msg) {
+        process.stderr.write(UI.error(msg) + '\n');
+      }
+      if (err) throw err;
+      process.exit(1);
+    })
+    .strict();
+
+  await (cli as ReturnType<typeof yargs>).parseAsync();
 }
 
-main().catch((error) => {
-  console.error('Error:', error);
+main().catch((error: unknown) => {
+  const msg = error instanceof Error ? error.message : String(error);
+  process.stderr.write(UI.error(msg) + '\n');
   process.exit(1);
 });

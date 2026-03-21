@@ -4,3 +4,7 @@ dist/
 .env
 .DS_Store
 coverage/
+.bin
+bun
+bunx
+_bun

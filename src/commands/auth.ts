@@ -1,203 +1,165 @@
-import { Command } from 'commander';
-import inquirer from 'inquirer';
-import ora from 'ora';
+import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
 import { setToken, clearToken, setAgentToken, clearAgentToken, getToken } from '../utils/config.js';
-import { formatSuccess, formatError, formatInfo } from '../utils/format.js';
-import { User, Agent } from '../types/index.js';
+import { UI, spinner } from '../utils/ui.js';
+import type { User, Agent } from '../types/index.js';
 
-export const authCommands = new Command('auth')
-  .description('Authentication commands');
-
-// Sign up
-authCommands
-  .command('sign-up')
-  .description('Register a new user account')
-  .option('-e, --email <email>', 'Email address')
-  .option('-n, --nickname <nickname>', 'Nickname')
-  .option('-p, --password <password>', 'Password')
-  .action(async (options) => {
+// ─── sign-up ─────────────────────────────────────────────────────────────────
+const signUp: CommandModule<{}, { email: string; nickname: string; password: string }> = {
+  command: 'sign-up',
+  describe: 'Register a new user account',
+  builder: (yargs) =>
+    yargs
+      .option('email', { alias: 'e', type: 'string', demandOption: true, description: 'Email address' })
+      .option('nickname', { alias: 'n', type: 'string', demandOption: true, description: 'Nickname' })
+      .option('password', { alias: 'p', type: 'string', demandOption: true, description: 'Password' }),
+  handler: async (argv) => {
+    const stop = spinner('Creating account...');
     try {
-      let { email, nickname, password } = options;
-
-      // Interactive prompts for missing values
-      if (!email) {
-        const answer = await inquirer.prompt([{
-          type: 'input',
-          name: 'email',
-          message: 'Email:',
-          validate: (input) => input.includes('@') || 'Please enter a valid email',
-        }]);
-        email = answer.email;
-      }
-
-      if (!nickname) {
-        const answer = await inquirer.prompt([{
-          type: 'input',
-          name: 'nickname',
-          message: 'Nickname:',
-          validate: (input) => input.length > 0 || 'Nickname is required',
-        }]);
-        nickname = answer.nickname;
-      }
-
-      if (!password) {
-        const answer = await inquirer.prompt([{
-          type: 'password',
-          name: 'password',
-          message: 'Password:',
-          mask: '*',
-          validate: (input) => input.length >= 6 || 'Password must be at least 6 characters',
-        }]);
-        password = answer.password;
-      }
-
-      const spinner = ora('Creating account...').start();
       const response = await apiClient.post<{ user: User; token: string }>('/auth/sign-up', {
-        email,
-        nickname,
-        password,
+        email: argv.email,
+        nickname: argv.nickname,
+        password: argv.password,
       });
-      spinner.stop();
-
+      stop();
       if (response.success) {
         setToken(response.data.token);
-        console.log(formatSuccess('Account created successfully!'));
-        console.log(formatInfo(`Welcome, ${response.data.user.nickname}!`));
+        UI.println(UI.success('Account created successfully!'));
+        UI.println(UI.info(`Welcome, ${response.data.user.nickname}!`));
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Sign up failed'));
+      stop();
+      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Sign up failed') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Sign in
-authCommands
-  .command('sign-in')
-  .description('Sign in to your account')
-  .option('-e, --email <email>', 'Email address')
-  .option('-p, --password <password>', 'Password')
-  .action(async (options) => {
+// ─── sign-in ─────────────────────────────────────────────────────────────────
+const signIn: CommandModule<{}, { email: string; password: string }> = {
+  command: 'sign-in',
+  describe: 'Sign in to your account',
+  builder: (yargs) =>
+    yargs
+      .option('email', { alias: 'e', type: 'string', demandOption: true, description: 'Email address' })
+      .option('password', { alias: 'p', type: 'string', demandOption: true, description: 'Password' }),
+  handler: async (argv) => {
+    const stop = spinner('Signing in...');
     try {
-      let { email, password } = options;
-
-      if (!email) {
-        const answer = await inquirer.prompt([{
-          type: 'input',
-          name: 'email',
-          message: 'Email:',
-        }]);
-        email = answer.email;
-      }
-
-      if (!password) {
-        const answer = await inquirer.prompt([{
-          type: 'password',
-          name: 'password',
-          message: 'Password:',
-          mask: '*',
-        }]);
-        password = answer.password;
-      }
-
-      const spinner = ora('Signing in...').start();
       const response = await apiClient.post<{ user: User; token: string }>('/auth/sign-in', {
-        email,
-        password,
+        email: argv.email,
+        password: argv.password,
       });
-      spinner.stop();
-
+      stop();
       if (response.success) {
         setToken(response.data.token);
-        console.log(formatSuccess('Signed in successfully!'));
-        console.log(formatInfo(`Welcome back, ${response.data.user.nickname}!`));
+        UI.println(UI.success('Signed in successfully!'));
+        UI.println(UI.info(`Welcome back, ${response.data.user.nickname}!`));
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Sign in failed'));
+      stop();
+      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Sign in failed') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Sign out
-authCommands
-  .command('sign-out')
-  .description('Sign out from your account')
-  .action(async () => {
+// ─── sign-out ─────────────────────────────────────────────────────────────────
+const signOut: CommandModule = {
+  command: 'sign-out',
+  describe: 'Sign out from your account',
+  handler: async () => {
+    const stop = spinner('Signing out...');
     try {
-      const spinner = ora('Signing out...').start();
       await apiClient.post('/auth/sign-out');
-      clearToken();
-      clearAgentToken();
-      spinner.stop();
-      console.log(formatSuccess('Signed out successfully!'));
-    } catch (error) {
-      // Still clear tokens locally even if API call fails
-      clearToken();
-      clearAgentToken();
-      console.log(formatSuccess('Signed out locally'));
+    } catch {
+      // still clear tokens locally
+    } finally {
+      stop();
     }
-  });
+    clearToken();
+    clearAgentToken();
+    UI.println(UI.success('Signed out successfully!'));
+  },
+};
 
-// Generate agent token
-authCommands
-  .command('agent-token <agent_id>')
-  .description('Generate an access token for an agent')
-  .action(async (agentId: string) => {
+// ─── agent-token ─────────────────────────────────────────────────────────────
+const agentToken: CommandModule<{}, { agent_id: string }> = {
+  command: 'agent-token <agent_id>',
+  describe: 'Generate an access token for an agent',
+  builder: (yargs) =>
+    yargs.positional('agent_id', { type: 'string', demandOption: true, description: 'Agent ID' }),
+  handler: async (argv) => {
+    const stop = spinner('Generating agent token...');
     try {
-      const spinner = ora('Generating agent token...').start();
       const response = await apiClient.post<{ agent_token: string; agent: Agent }>('/auth/agent-token', {
-        agent_id: agentId,
+        agent_id: argv.agent_id,
       });
-      spinner.stop();
-
+      stop();
       if (response.success) {
         setAgentToken(response.data.agent_token);
-        console.log(formatSuccess('Agent token generated successfully!'));
-        console.log(formatInfo(`Agent: ${response.data.agent.full_name}`));
+        UI.println(UI.success('Agent token generated successfully!'));
+        UI.println(UI.info(`Agent: ${response.data.agent.full_name}`));
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to generate agent token'));
+      stop();
+      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Failed to generate agent token') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Refresh token
-authCommands
-  .command('refresh')
-  .description('Refresh your authentication token')
-  .action(async () => {
+// ─── refresh ─────────────────────────────────────────────────────────────────
+const refresh: CommandModule = {
+  command: 'refresh',
+  describe: 'Refresh your authentication token',
+  handler: async () => {
+    const stop = spinner('Refreshing token...');
     try {
-      const spinner = ora('Refreshing token...').start();
       const response = await apiClient.post<{ token: string; user?: User; agent?: Agent }>('/auth/refresh');
-      spinner.stop();
-
+      stop();
       if (response.success) {
         setToken(response.data.token);
-        console.log(formatSuccess('Token refreshed successfully!'));
-        if (response.data.user) {
-          console.log(formatInfo(`User: ${response.data.user.nickname}`));
-        }
-        if (response.data.agent) {
-          console.log(formatInfo(`Agent: ${response.data.agent.full_name}`));
-        }
+        UI.println(UI.success('Token refreshed successfully!'));
+        if (response.data.user) UI.println(UI.info(`User: ${response.data.user.nickname}`));
+        if (response.data.agent) UI.println(UI.info(`Agent: ${response.data.agent.full_name}`));
       }
     } catch (error) {
-      console.error(formatError(error instanceof Error ? error.message : 'Failed to refresh token'));
+      stop();
+      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Failed to refresh token') + '\n');
       process.exit(1);
     }
-  });
+  },
+};
 
-// Verify token (check status)
-authCommands
-  .command('status')
-  .description('Check authentication status')
-  .action(() => {
+// ─── status ──────────────────────────────────────────────────────────────────
+const status: CommandModule = {
+  command: 'status',
+  describe: 'Check authentication status',
+  handler: () => {
     const token = getToken();
     if (token) {
-      console.log(formatInfo('You are authenticated'));
+      UI.println(UI.info('You are authenticated'));
     } else {
-      console.log(formatInfo('You are not authenticated'));
+      UI.println(UI.info('You are not authenticated'));
     }
-  });
+  },
+};
+
+// ─── auth group ──────────────────────────────────────────────────────────────
+const authCommands: CommandModule = {
+  command: 'auth <command>',
+  describe: 'Authentication commands',
+  builder: (yargs) =>
+    yargs
+      .command(signUp)
+      .command(signIn)
+      .command(signOut)
+      .command(agentToken)
+      .command(refresh)
+      .command(status)
+      .demandCommand(1, 'Please specify an auth sub-command'),
+  handler: () => {},
+};
 
 export default authCommands;

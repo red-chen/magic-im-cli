@@ -1,5 +1,4 @@
-import inquirer from 'inquirer';
-import chalk from 'chalk';
+import { createInterface } from 'readline';
 import { existsSync } from 'fs';
 import { getLanguage, setLanguage, getConfigFilePath } from './config.js';
 import { getAvailableLanguages } from './i18n.js';
@@ -58,34 +57,35 @@ export const promptForLanguage = async (): Promise<Language> => {
   const content = `
 ${styles.bold('🌐 请选择语言 / Select Language')}
 
-${chalk.gray('This will be your default language for the CLI.')}
-${chalk.gray('您可以在任何时候使用 `magic-im config language` 更改语言。')}
+${styles.dim('This will be your default language for the CLI.')}
+${styles.dim('您可以在任何时候使用 `magic-im config language` 更改语言。')}
 `;
   
   console.log(createBox(content, { 
     borderColor: 'yellow',
     title: 'First Run / 首次运行',
-    titleAlignment: 'center',
   }));
-  
-  const answer = await inquirer.prompt([{
-    type: 'list',
-    name: 'language',
-    message: chalk.cyan('➜'),
-    choices: languages.map(lang => ({
-      name: lang.value === 'en' 
-        ? `  🇺🇸  ${lang.label}` 
-        : `  🇨🇳  ${lang.label}`,
-      value: lang.value,
-    })),
-    default: 'en',
-    prefix: '',
-  }]);
 
-  const selectedLang = answer.language as Language;
+  // Show options
+  languages.forEach((lang, i) => {
+    const flag = lang.value === 'en' ? '🇺🇸' : '🇨🇳';
+    process.stdout.write(`  ${styles.bold(String(i + 1))}. ${flag}  ${lang.label}\n`);
+  });
+  process.stdout.write('\n');
+
+  const selectedLang = await new Promise<Language>((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(styles.info('Enter number (default: 1): '), (answer) => {
+      rl.close();
+      const idx = parseInt(answer.trim(), 10) - 1;
+      const lang = languages[idx];
+      resolve((lang?.value as Language) ?? 'en');
+    });
+  });
+
   setLanguage(selectedLang);
   
-  // Show confirmation in a beautiful box
+  // Show confirmation
   const confirmationContent = selectedLang === 'zh' 
     ? `${styles.success('语言已设置为中文')}\n\n${styles.dim('Settings saved to:')}\n${getConfigFilePath()}`
     : `${styles.success('Language set to English')}\n\n${styles.dim('Settings saved to:')}\n${getConfigFilePath()}`;
