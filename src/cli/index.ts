@@ -1,8 +1,5 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
 import configCommands from './commands/config.js';
 import authCommands, { signinShortcut } from './commands/auth.js';
@@ -13,13 +10,9 @@ import { messageCommands, conversationCommands } from './commands/message.js';
 import { printError } from './utils/output.js';
 import { logger } from './utils/logger.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Read package.json for version
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8')) as {
-  version: string;
-};
+// Version is injected at build time via define
+declare const __VERSION__: string;
+const version = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '0.0.1-dev';
 
 // Global JSON output mode
 export let isJsonMode = false;
@@ -39,7 +32,7 @@ export async function runCli(): Promise<void> {
     .wrap(100)
     .help('help', 'show help')
     .alias('help', 'h')
-    .version('version', 'show version', packageJson.version)
+    .version('version', 'show version', version)
     .alias('version', 'v')
     .option('json', {
       type: 'boolean' as const,
