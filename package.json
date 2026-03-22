@@ -12,8 +12,8 @@
     "build": "bun run scripts/build.ts",
     "typecheck": "tsc --noEmit",
     "start": "bun run dist/index.js",
-    "test": "vitest",
-    "test:run": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "im",

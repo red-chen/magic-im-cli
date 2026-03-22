@@ -1,21 +1,24 @@
 import type { CommandModule } from 'yargs';
-import { apiClient } from '../utils/api.js';
-import { UI, spinner, createAgentTable, createSuccessBox, createErrorBox, sectionHeader, divider } from '../utils/ui.js';
-import { t } from '../utils/i18n.js';
-import type { Agent } from '../types/index.js';
-import { logger } from '../utils/logger.js';
+import { agentApi } from '../../core/api/index.js';
+import type { AgentVisibility } from '../../core/types/index.js';
+import { spinner } from '../utils/spinner.js';
+import { println, printError, sectionHeader, divider, createSuccessBox, createErrorBox } from '../utils/output.js';
+import { createAgentTable } from '../utils/format.js';
+import { createLogger } from '../utils/logger.js';
 
-// JSON mode flag (for backward compatibility with TUI mode)
-let isJsonMode = false;
-export const setJsonMode = (value: boolean) => {
-  isJsonMode = value;
-};
+const logger = createLogger('agent');
 
-const VISIBILITY_MAP: Record<string, string> = {
+const VISIBILITY_MAP: Record<string, AgentVisibility> = {
   public: 'PUBLIC',
   'semi-public': 'SEMI_PUBLIC',
   'friends-only': 'FRIENDS_ONLY',
   private: 'PRIVATE',
+};
+
+// Global JSON output mode
+let isJsonMode = false;
+export const setJsonMode = (value: boolean) => {
+  isJsonMode = value;
 };
 
 // ─── agent create ────────────────────────────────────────────────────────────
@@ -35,21 +38,21 @@ const agentCreate: CommandModule<{}, { name: string; visibility: string }> = {
   handler: async (argv) => {
     const stop = spinner('Creating agent...');
     try {
-      const response = await apiClient.post<Agent>('/agents', {
+      const response = await agentApi.createAgent({
         name: argv.name,
         visibility: VISIBILITY_MAP[argv.visibility.toLowerCase()] ?? 'PUBLIC',
       });
       stop();
       if (response.success) {
-        sectionHeader(t('agentCreated'));
-        UI.println(createAgentTable([response.data]));
+        sectionHeader('Agent Created');
+        println(createAgentTable([response.data]));
         divider();
       }
     } catch (error) {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to create agent';
-      logger.error('agent create failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      UI.println(createErrorBox(UI.error(msg)));
+      logger.error('agent create failed', { message: msg });
+      println(createErrorBox(msg));
       process.exit(1);
     }
   },
@@ -60,27 +63,27 @@ const agentList: CommandModule = {
   command: 'list',
   describe: 'List all your agents',
   handler: async () => {
-    const stop = spinner(t('agentList'));
+    const stop = spinner('Loading agents...');
     try {
-      const response = await apiClient.get<Agent[]>('/agents');
+      const response = await agentApi.listAgents();
       stop();
       if (response.success) {
         if (isJsonMode) {
           process.stdout.write(JSON.stringify({ success: true, data: response.data }) + '\n');
         } else {
-          sectionHeader(t('agentList'));
-          UI.println(createAgentTable(response.data));
+          sectionHeader('Agent List');
+          println(createAgentTable(response.data));
           divider();
         }
       }
     } catch (error) {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to list agents';
-      logger.error('agent list failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      logger.error('agent list failed', { message: msg });
       if (isJsonMode) {
         process.stdout.write(JSON.stringify({ success: false, error: msg }) + '\n');
       } else {
-        UI.println(createErrorBox(UI.error(msg)));
+        println(createErrorBox(msg));
       }
       process.exit(1);
     }
@@ -96,18 +99,18 @@ const agentGet: CommandModule<{}, { agent_id: string }> = {
   handler: async (argv) => {
     const stop = spinner('Loading agent...');
     try {
-      const response = await apiClient.get<Agent>(`/agents/${argv.agent_id}`);
+      const response = await agentApi.getAgent(argv.agent_id);
       stop();
       if (response.success) {
         sectionHeader('Agent Details');
-        UI.println(createAgentTable([response.data]));
+        println(createAgentTable([response.data]));
         divider();
       }
     } catch (error) {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to get agent';
-      logger.error('agent get failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      UI.println(createErrorBox(UI.error(msg)));
+      logger.error('agent get failed', { message: msg });
+      println(createErrorBox(msg));
       process.exit(1);
     }
   },
@@ -128,29 +131,29 @@ const agentUpdate: CommandModule<{}, { agent_id: string; name?: string; visibili
         description: 'New visibility',
       }),
   handler: async (argv) => {
-    const updates: { name?: string; visibility?: string } = {};
+    const updates: { name?: string; visibility?: AgentVisibility } = {};
     if (argv.name) updates.name = argv.name;
     if (argv.visibility) updates.visibility = VISIBILITY_MAP[argv.visibility.toLowerCase()];
 
     if (Object.keys(updates).length === 0) {
-      UI.println(createErrorBox(UI.error('No updates provided')));
+      println(createErrorBox('No updates provided'));
       process.exit(1);
     }
 
     const stop = spinner('Updating agent...');
     try {
-      const response = await apiClient.patch<Agent>(`/agents/${argv.agent_id}`, updates);
+      const response = await agentApi.updateAgent(argv.agent_id, updates);
       stop();
       if (response.success) {
-        sectionHeader(t('agentUpdated'));
-        UI.println(createAgentTable([response.data]));
+        sectionHeader('Agent Updated');
+        println(createAgentTable([response.data]));
         divider();
       }
     } catch (error) {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to update agent';
-      logger.error('agent update failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      UI.println(createErrorBox(UI.error(msg)));
+      logger.error('agent update failed', { message: msg });
+      println(createErrorBox(msg));
       process.exit(1);
     }
   },
@@ -166,20 +169,20 @@ const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
       .option('force', { alias: 'f', type: 'boolean', default: false, description: 'Confirm deletion' }),
   handler: async (argv) => {
     if (!argv.force) {
-      UI.println(createErrorBox(UI.error('Use --force to confirm deletion')));
+      println(createErrorBox('Use --force to confirm deletion'));
       process.exit(1);
     }
 
     const stop = spinner('Deleting agent...');
     try {
-      await apiClient.delete(`/agents/${argv.agent_id}`);
+      await agentApi.deleteAgent(argv.agent_id);
       stop();
-      UI.println(createSuccessBox(UI.success(t('agentDeleted'))));
+      println(createSuccessBox('Agent deleted successfully!'));
     } catch (error) {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to delete agent';
-      logger.error('agent delete failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      UI.println(createErrorBox(UI.error(msg)));
+      logger.error('agent delete failed', { message: msg });
+      println(createErrorBox(msg));
       process.exit(1);
     }
   },

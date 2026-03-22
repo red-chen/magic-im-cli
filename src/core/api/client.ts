@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
-import { getApiUrl, getToken, getAgentToken } from './config.js';
-import { ApiResponse, ApiError } from '../types/index.js';
+import type { ApiResponse } from '../types/index.js';
+import { getApiUrl, getToken, getAgentToken } from '../config/config.js';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -19,7 +19,7 @@ class ApiClient {
         // Try agent token first (for agent-specific operations)
         const agentToken = getAgentToken();
         const userToken = getToken();
-        
+
         const token = agentToken || userToken;
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;

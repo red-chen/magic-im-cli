@@ -77,11 +77,16 @@ export interface Message {
   created_at: string;
 }
 
+export interface ApiError {
+  code: string;
+  message: string;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
   message?: string;
-  error?: string;
+  error?: string | ApiError;
   meta?: {
     page?: number;
     pageSize?: number;
