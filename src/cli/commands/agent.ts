@@ -53,7 +53,6 @@ const agentCreate: CommandModule<{}, { name: string; visibility: string }> = {
       const msg = error instanceof Error ? error.message : 'Failed to create agent';
       logger.error('agent create failed', { message: msg });
       println(createErrorBox(msg));
-      process.exit(1);
     }
   },
 };
@@ -85,7 +84,6 @@ const agentList: CommandModule = {
       } else {
         println(createErrorBox(msg));
       }
-      process.exit(1);
     }
   },
 };
@@ -111,7 +109,6 @@ const agentGet: CommandModule<{}, { agent_id: string }> = {
       const msg = error instanceof Error ? error.message : 'Failed to get agent';
       logger.error('agent get failed', { message: msg });
       println(createErrorBox(msg));
-      process.exit(1);
     }
   },
 };
@@ -137,7 +134,7 @@ const agentUpdate: CommandModule<{}, { agent_id: string; name?: string; visibili
 
     if (Object.keys(updates).length === 0) {
       println(createErrorBox('No updates provided'));
-      process.exit(1);
+      return;
     }
 
     const stop = spinner('Updating agent...');
@@ -154,7 +151,6 @@ const agentUpdate: CommandModule<{}, { agent_id: string; name?: string; visibili
       const msg = error instanceof Error ? error.message : 'Failed to update agent';
       logger.error('agent update failed', { message: msg });
       println(createErrorBox(msg));
-      process.exit(1);
     }
   },
 };
@@ -170,7 +166,7 @@ const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
   handler: async (argv) => {
     if (!argv.force) {
       println(createErrorBox('Use --force to confirm deletion'));
-      process.exit(1);
+      return;
     }
 
     const stop = spinner('Deleting agent...');
@@ -183,7 +179,6 @@ const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
       const msg = error instanceof Error ? error.message : 'Failed to delete agent';
       logger.error('agent delete failed', { message: msg });
       println(createErrorBox(msg));
-      process.exit(1);
     }
   },
 };

@@ -46,8 +46,7 @@ const messageSend: CommandModule<
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to send message';
       logger.error('message send failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(formatError(msg) + '\n');
-      process.exit(1);
+      UI.println(formatError(msg));
     }
   },
 };
@@ -86,8 +85,7 @@ const messagePoll: CommandModule<{}, { 'last-message-id'?: string; limit: number
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to poll messages';
       logger.error('message poll failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(formatError(msg) + '\n');
-      process.exit(1);
+      UI.println(formatError(msg));
     }
   },
 };
@@ -120,8 +118,7 @@ const conversationList: CommandModule = {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to load conversations';
       logger.error('conversation list failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(formatError(msg) + '\n');
-      process.exit(1);
+      UI.println(formatError(msg));
     }
   },
 };
@@ -158,8 +155,7 @@ const conversationMessages: CommandModule<{}, { conversation_id: string; page: n
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to load messages';
       logger.error('conversation messages failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(formatError(msg) + '\n');
-      process.exit(1);
+      UI.println(formatError(msg));
     }
   },
 };

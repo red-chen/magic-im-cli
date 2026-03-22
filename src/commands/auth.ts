@@ -32,8 +32,7 @@ const signUp: CommandModule<{}, { email: string; nickname: string; password: str
       stop();
       const msg = error instanceof Error ? error.message : 'Sign up failed';
       logger.error('sign-up failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(UI.error(msg) + '\n');
-      process.exit(1);
+      UI.println(UI.error(msg));
     }
   },
 };
@@ -63,8 +62,7 @@ const signIn: CommandModule<{}, { email: string; password: string }> = {
       stop();
       const msg = error instanceof Error ? error.message : 'Sign in failed';
       logger.error('sign-in failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(UI.error(msg) + '\n');
-      process.exit(1);
+      UI.println(UI.error(msg));
     }
   },
 };
@@ -94,8 +92,7 @@ const signinShortcut: CommandModule<{}, { mail: string; password: string }> = {
       stop();
       const msg = error instanceof Error ? error.message : 'Sign in failed';
       logger.error('signin failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(UI.error(msg) + '\n');
-      process.exit(1);
+      UI.println(UI.error(msg));
     }
   },
 };
@@ -141,8 +138,7 @@ const agentToken: CommandModule<{}, { agent_id: string }> = {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to generate agent token';
       logger.error('agent-token failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(UI.error(msg) + '\n');
-      process.exit(1);
+      UI.println(UI.error(msg));
     }
   },
 };
@@ -166,8 +162,7 @@ const refresh: CommandModule = {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to refresh token';
       logger.error('refresh failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(UI.error(msg) + '\n');
-      process.exit(1);
+      UI.println(UI.error(msg));
     }
   },
 };

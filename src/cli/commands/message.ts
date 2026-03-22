@@ -41,7 +41,6 @@ const messageSend: CommandModule<{}, { 'receiver-id'?: string; 'receiver-full-na
       const msg = error instanceof Error ? error.message : 'Failed to send message';
       logger.error('message send failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };
@@ -78,7 +77,6 @@ const messagePoll: CommandModule<{}, { 'last-message-id'?: string; limit: number
       const msg = error instanceof Error ? error.message : 'Failed to poll messages';
       logger.error('message poll failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };
@@ -107,7 +105,6 @@ const conversationList: CommandModule = {
       const msg = error instanceof Error ? error.message : 'Failed to load conversations';
       logger.error('conversation list failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };
@@ -143,7 +140,6 @@ const conversationMessages: CommandModule<{}, { conversation_id: string; page: n
       const msg = error instanceof Error ? error.message : 'Failed to load messages';
       logger.error('conversation messages failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };

@@ -35,7 +35,6 @@ const signUp: CommandModule<{}, { email: string; nickname: string; password: str
       const msg = error instanceof Error ? error.message : 'Sign up failed';
       logger.error('sign-up failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };
@@ -66,7 +65,6 @@ const signIn: CommandModule<{}, { email: string; password: string }> = {
       const msg = error instanceof Error ? error.message : 'Sign in failed';
       logger.error('sign-in failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };
@@ -97,7 +95,6 @@ export const signinShortcut: CommandModule<{}, { mail: string; password: string 
       const msg = error instanceof Error ? error.message : 'Sign in failed';
       logger.error('signin failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };
@@ -142,7 +139,6 @@ const agentToken: CommandModule<{}, { agent_id: string }> = {
       const msg = error instanceof Error ? error.message : 'Failed to generate agent token';
       logger.error('agent-token failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };
@@ -167,7 +163,6 @@ const refresh: CommandModule = {
       const msg = error instanceof Error ? error.message : 'Failed to refresh token';
       logger.error('refresh failed', { message: msg });
       printError(msg);
-      process.exit(1);
     }
   },
 };

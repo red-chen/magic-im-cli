@@ -44,13 +44,15 @@ const cleanupLogs = () => {
   }
 };
 
-async function runSearchCommand(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+async function runSearchCommand(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number; uiOutput: string[] }> {
   const { default: yargsLib } = await import('yargs');
   const { hideBin } = await import('yargs/helpers');
   const searchMod = await import('./search.js');
+  const { UI } = await import('../utils/ui.js');
 
   const stdout: string[] = [];
   const stderr: string[] = [];
+  const uiOutput: string[] = [];
   let exitCode = 0;
 
   const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation((s: unknown) => {
@@ -64,6 +66,10 @@ async function runSearchCommand(args: string[]): Promise<{ stdout: string; stder
   const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
     exitCode = typeof code === 'number' ? code : 0;
     throw new Error(`process.exit(${code})`);
+  });
+  const uiSpy = vi.spyOn(UI, 'println').mockImplementation((s: string) => {
+    uiOutput.push(s);
+    return true;
   });
 
   try {
@@ -81,9 +87,10 @@ async function runSearchCommand(args: string[]): Promise<{ stdout: string; stder
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
     exitSpy.mockRestore();
+    uiSpy.mockRestore();
   }
 
-  return { stdout: stdout.join(''), stderr: stderr.join(''), exitCode };
+  return { stdout: stdout.join(''), stderr: stderr.join(''), exitCode, uiOutput };
 }
 
 describe('search commands error logging', () => {
@@ -105,8 +112,10 @@ describe('search commands error logging', () => {
 
       const result = await runSearchCommand(['search', 'agents', 'test']);
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('Unauthorized');
+      // Should not call process.exit - TUI should continue running
+      expect(result.exitCode).toBe(0);
+      // Error should be displayed via UI.println
+      expect(result.uiOutput).toContain('Unauthorized');
 
       // Verify log file contains the error
       if (existsSync(TEST_LOG_FILE)) {
@@ -138,8 +147,26 @@ describe('search commands error logging', () => {
 
       const result = await runSearchCommand(['search', 'agents', 'test']);
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('Search failed');
+      // Should not call process.exit - TUI should continue running
+      expect(result.exitCode).toBe(0);
+      // Error should be displayed via UI.println
+      expect(result.uiOutput).toContain('Search failed');
+    });
+
+    it('should not call process.exit on error to prevent TUI crash', async () => {
+      const { apiClient } = await import('../utils/api.js');
+      const mockGet = apiClient.get as ReturnType<typeof vi.fn>;
+      mockGet.mockRejectedValueOnce(new Error('Unauthorized'));
+
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit should not be called');
+      });
+
+      // Should not throw
+      await expect(runSearchCommand(['search', 'agents', 'test'])).resolves.not.toThrow();
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      exitSpy.mockRestore();
     });
   });
 
@@ -151,8 +178,10 @@ describe('search commands error logging', () => {
 
       const result = await runSearchCommand(['search', 'users', 'test']);
 
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('User not authenticated');
+      // Should not call process.exit - TUI should continue running
+      expect(result.exitCode).toBe(0);
+      // Error should be displayed via UI.println
+      expect(result.uiOutput).toContain('User not authenticated');
 
       if (existsSync(TEST_LOG_FILE)) {
         const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
@@ -160,6 +189,22 @@ describe('search commands error logging', () => {
         expect(logContent).toContain('search users failed');
         expect(logContent).toContain('User not authenticated');
       }
+    });
+
+    it('should not call process.exit on error to prevent TUI crash', async () => {
+      const { apiClient } = await import('../utils/api.js');
+      const mockGet = apiClient.get as ReturnType<typeof vi.fn>;
+      mockGet.mockRejectedValueOnce(new Error('User not authenticated'));
+
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit should not be called');
+      });
+
+      // Should not throw
+      await expect(runSearchCommand(['search', 'users', 'test'])).resolves.not.toThrow();
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      exitSpy.mockRestore();
     });
   });
 

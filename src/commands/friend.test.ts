@@ -30,13 +30,15 @@ vi.mock('../utils/format.js', () => ({
   formatFriendRequestList: (data: unknown[]) => `Requests: ${data.length}`,
 }));
 
-async function runCommand(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+async function runCommand(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number; uiOutput: string[] }> {
   const { default: yargsLib } = await import('yargs');
   const { hideBin } = await import('yargs/helpers');
   const friendMod = await import('./friend.js');
+  const { UI } = await import('../utils/ui.js');
 
   const stdout: string[] = [];
   const stderr: string[] = [];
+  const uiOutput: string[] = [];
   let exitCode = 0;
 
   const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation((s: unknown) => {
@@ -50,6 +52,10 @@ async function runCommand(args: string[]): Promise<{ stdout: string; stderr: str
   const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
     exitCode = typeof code === 'number' ? code : 0;
     throw new Error(`process.exit(${code})`);
+  });
+  const uiSpy = vi.spyOn(UI, 'println').mockImplementation((s: string) => {
+    uiOutput.push(s);
+    return true;
   });
 
   try {
@@ -67,9 +73,10 @@ async function runCommand(args: string[]): Promise<{ stdout: string; stderr: str
     stdoutSpy.mockRestore();
     stderrSpy.mockRestore();
     exitSpy.mockRestore();
+    uiSpy.mockRestore();
   }
 
-  return { stdout: stdout.join(''), stderr: stderr.join(''), exitCode };
+  return { stdout: stdout.join(''), stderr: stderr.join(''), exitCode, uiOutput };
 }
 
 describe('friend commands (yargs)', () => {
@@ -118,7 +125,6 @@ describe('friend commands (yargs)', () => {
     describe('friend list', () => {
       it('should list all friends', async () => {
         const { apiClient } = await import('../utils/api.js');
-        const { UI } = await import('../utils/ui.js');
 
         vi.mocked(apiClient.get).mockResolvedValueOnce({
           success: true,
@@ -128,32 +134,30 @@ describe('friend commands (yargs)', () => {
           ],
         });
 
-        await runCommand(['friend', 'list']);
+        const { uiOutput } = await runCommand(['friend', 'list']);
 
         expect(apiClient.get).toHaveBeenCalledWith('/friends');
-        expect(UI.println).toHaveBeenCalled();
+        expect(uiOutput.length).toBeGreaterThan(0);
       });
 
       it('should handle empty friend list', async () => {
         const { apiClient } = await import('../utils/api.js');
-        const { UI } = await import('../utils/ui.js');
 
         vi.mocked(apiClient.get).mockResolvedValueOnce({
           success: true,
           data: [],
         });
 
-        await runCommand(['friend', 'list']);
+        const { uiOutput } = await runCommand(['friend', 'list']);
 
         expect(apiClient.get).toHaveBeenCalledWith('/friends');
-        expect(UI.println).toHaveBeenCalled();
+        expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
 
     describe('friend requests', () => {
       it('should list pending friend requests', async () => {
         const { apiClient } = await import('../utils/api.js');
-        const { UI } = await import('../utils/ui.js');
 
         vi.mocked(apiClient.get).mockResolvedValueOnce({
           success: true,
@@ -162,61 +166,58 @@ describe('friend commands (yargs)', () => {
           ],
         });
 
-        await runCommand(['friend', 'requests']);
+        const { uiOutput } = await runCommand(['friend', 'requests']);
 
         expect(apiClient.get).toHaveBeenCalledWith('/friends/requests');
-        expect(UI.println).toHaveBeenCalled();
+        expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
 
     describe('friend accept', () => {
       it('should accept friend request with valid request_id', async () => {
         const { apiClient } = await import('../utils/api.js');
-        const { UI } = await import('../utils/ui.js');
 
         vi.mocked(apiClient.post).mockResolvedValueOnce({
           success: true,
           data: { id: 'f1', agent_id: 'a1', friend_agent_id: 'a2', created_at: '' },
         });
 
-        await runCommand(['friend', 'accept', 'request-uuid-123']);
+        const { uiOutput } = await runCommand(['friend', 'accept', 'request-uuid-123']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/accept/request-uuid-123');
-        expect(UI.println).toHaveBeenCalled();
+        expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
 
     describe('friend reject', () => {
       it('should reject friend request with valid request_id', async () => {
         const { apiClient } = await import('../utils/api.js');
-        const { UI } = await import('../utils/ui.js');
 
         vi.mocked(apiClient.post).mockResolvedValueOnce({
           success: true,
           data: {},
         });
 
-        await runCommand(['friend', 'reject', 'request-uuid-456']);
+        const { uiOutput } = await runCommand(['friend', 'reject', 'request-uuid-456']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/reject/request-uuid-456');
-        expect(UI.println).toHaveBeenCalled();
+        expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
 
     describe('friend remove', () => {
       it('should remove friend with valid friend_id', async () => {
         const { apiClient } = await import('../utils/api.js');
-        const { UI } = await import('../utils/ui.js');
 
         vi.mocked(apiClient.delete).mockResolvedValueOnce({
           success: true,
           data: {},
         });
 
-        await runCommand(['friend', 'remove', 'friend-uuid-789']);
+        const { uiOutput } = await runCommand(['friend', 'remove', 'friend-uuid-789']);
 
         expect(apiClient.delete).toHaveBeenCalledWith('/friends/friend-uuid-789');
-        expect(UI.println).toHaveBeenCalled();
+        expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
   });
@@ -258,13 +259,13 @@ describe('friend commands (yargs)', () => {
 
         vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Agent not found'));
 
-        const { stderr, exitCode } = await runCommand(['friend', 'add', 'NonExistent#User']);
+        const { uiOutput, exitCode } = await runCommand(['friend', 'add', 'NonExistent#User']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
           target_full_name: 'NonExistent#User',
         });
-        expect(stderr).toContain('Agent not found');
-        expect(exitCode).toBe(1);
+        expect(uiOutput).toContain('Agent not found');
+        expect(exitCode).toBe(0); // Should not exit on error
       });
 
       it('should handle network error', async () => {
@@ -272,10 +273,10 @@ describe('friend commands (yargs)', () => {
 
         vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Network error'));
 
-        const { stderr, exitCode } = await runCommand(['friend', 'add', 'Bot#User']);
+        const { uiOutput, exitCode } = await runCommand(['friend', 'add', 'Bot#User']);
 
-        expect(stderr).toContain('Network error');
-        expect(exitCode).toBe(1);
+        expect(uiOutput).toContain('Network error');
+        expect(exitCode).toBe(0); // Should not exit on error
       });
 
       it('should handle already friends error', async () => {
@@ -283,10 +284,10 @@ describe('friend commands (yargs)', () => {
 
         vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Already friends'));
 
-        const { stderr, exitCode } = await runCommand(['friend', 'add', 'Bot#User']);
+        const { uiOutput, exitCode } = await runCommand(['friend', 'add', 'Bot#User']);
 
-        expect(stderr).toContain('Already friends');
-        expect(exitCode).toBe(1);
+        expect(uiOutput).toContain('Already friends');
+        expect(exitCode).toBe(0); // Should not exit on error
       });
     });
 
@@ -325,10 +326,10 @@ describe('friend commands (yargs)', () => {
 
         vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Request not found'));
 
-        const { stderr, exitCode } = await runCommand(['friend', 'accept', 'invalid-uuid']);
+        const { uiOutput, exitCode } = await runCommand(['friend', 'accept', 'invalid-uuid']);
 
-        expect(stderr).toContain('Request not found');
-        expect(exitCode).toBe(1);
+        expect(uiOutput).toContain('Request not found');
+        expect(exitCode).toBe(0); // Should not exit on error
       });
     });
 
@@ -398,10 +399,10 @@ describe('friend commands (yargs)', () => {
 
         vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error('Friend not found'));
 
-        const { stderr, exitCode } = await runCommand(['friend', 'remove', 'invalid-friend-id']);
+        const { uiOutput, exitCode } = await runCommand(['friend', 'remove', 'invalid-friend-id']);
 
-        expect(stderr).toContain('Friend not found');
-        expect(exitCode).toBe(1);
+        expect(uiOutput).toContain('Friend not found');
+        expect(exitCode).toBe(0); // Should not exit on error
       });
     });
 
@@ -411,10 +412,10 @@ describe('friend commands (yargs)', () => {
 
         vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('Unauthorized'));
 
-        const { stderr, exitCode } = await runCommand(['friend', 'list']);
+        const { uiOutput, exitCode } = await runCommand(['friend', 'list']);
 
-        expect(stderr).toContain('Unauthorized');
-        expect(exitCode).toBe(1);
+        expect(uiOutput).toContain('Unauthorized');
+        expect(exitCode).toBe(0); // Should not exit on error
       });
     });
   });
@@ -519,7 +520,6 @@ describe('friend commands (yargs)', () => {
     describe('friend list', () => {
       it('should handle large friend list', async () => {
         const { apiClient } = await import('../utils/api.js');
-        const { UI } = await import('../utils/ui.js');
 
         const largeFriendList = Array.from({ length: 100 }, (_, i) => ({
           id: `f${i}`,
@@ -535,10 +535,10 @@ describe('friend commands (yargs)', () => {
           data: largeFriendList,
         });
 
-        await runCommand(['friend', 'list']);
+        const { uiOutput } = await runCommand(['friend', 'list']);
 
         expect(apiClient.get).toHaveBeenCalledWith('/friends');
-        expect(UI.println).toHaveBeenCalled();
+        expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
   });

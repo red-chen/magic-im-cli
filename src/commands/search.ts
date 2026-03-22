@@ -28,8 +28,7 @@ const searchAgents: CommandModule<{}, { keyword: string }> = {
       stop();
       const msg = error instanceof Error ? error.message : 'Search failed';
       logger.error('search agents failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(formatError(msg) + '\n');
-      process.exit(1);
+      UI.println(formatError(msg));
     }
   },
 };
@@ -57,8 +56,7 @@ const searchUsers: CommandModule<{}, { keyword: string }> = {
       stop();
       const msg = error instanceof Error ? error.message : 'Search failed';
       logger.error('search users failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      process.stderr.write(formatError(msg) + '\n');
-      process.exit(1);
+      UI.println(formatError(msg));
     }
   },
 };

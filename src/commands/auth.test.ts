@@ -355,8 +355,9 @@ describe('auth commands (yargs)', () => {
 
     it('should handle API error gracefully', async () => {
       const { apiClient } = await import('../utils/api.js');
+      const { UI } = await import('../utils/ui.js');
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
-      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const uiSpy = vi.spyOn(UI, 'println').mockImplementation(() => true);
 
       vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Invalid credentials'));
 
@@ -374,9 +375,10 @@ describe('auth commands (yargs)', () => {
       process.argv = [];
 
       expect(apiClient.post).toHaveBeenCalledWith('/auth/sign-in', { email: 'a@b.com', password: 'wrong' });
-      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid credentials'));
+      expect(uiSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid credentials'));
+      expect(exitSpy).not.toHaveBeenCalled(); // Should not call process.exit
       exitSpy.mockRestore();
-      stderrSpy.mockRestore();
+      uiSpy.mockRestore();
     });
   });
 });

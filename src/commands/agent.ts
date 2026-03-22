@@ -50,7 +50,6 @@ const agentCreate: CommandModule<{}, { name: string; visibility: string }> = {
       const msg = error instanceof Error ? error.message : 'Failed to create agent';
       logger.error('agent create failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
       UI.println(createErrorBox(UI.error(msg)));
-      process.exit(1);
     }
   },
 };
@@ -82,7 +81,6 @@ const agentList: CommandModule = {
       } else {
         UI.println(createErrorBox(UI.error(msg)));
       }
-      process.exit(1);
     }
   },
 };
@@ -108,7 +106,6 @@ const agentGet: CommandModule<{}, { agent_id: string }> = {
       const msg = error instanceof Error ? error.message : 'Failed to get agent';
       logger.error('agent get failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
       UI.println(createErrorBox(UI.error(msg)));
-      process.exit(1);
     }
   },
 };
@@ -134,7 +131,7 @@ const agentUpdate: CommandModule<{}, { agent_id: string; name?: string; visibili
 
     if (Object.keys(updates).length === 0) {
       UI.println(createErrorBox(UI.error('No updates provided')));
-      process.exit(1);
+      return;
     }
 
     const stop = spinner('Updating agent...');
@@ -151,7 +148,6 @@ const agentUpdate: CommandModule<{}, { agent_id: string; name?: string; visibili
       const msg = error instanceof Error ? error.message : 'Failed to update agent';
       logger.error('agent update failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
       UI.println(createErrorBox(UI.error(msg)));
-      process.exit(1);
     }
   },
 };
@@ -167,7 +163,7 @@ const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
   handler: async (argv) => {
     if (!argv.force) {
       UI.println(createErrorBox(UI.error('Use --force to confirm deletion')));
-      process.exit(1);
+      return;
     }
 
     const stop = spinner('Deleting agent...');
@@ -180,7 +176,6 @@ const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
       const msg = error instanceof Error ? error.message : 'Failed to delete agent';
       logger.error('agent delete failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
       UI.println(createErrorBox(UI.error(msg)));
-      process.exit(1);
     }
   },
 };
