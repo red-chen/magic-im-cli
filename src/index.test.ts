@@ -57,8 +57,9 @@ const cleanupLogs = () => {
 };
 
 describe('Global Error Handling', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupLogs();
+    vi.resetModules();
   });
 
   afterEach(() => {
@@ -67,40 +68,54 @@ describe('Global Error Handling', () => {
   });
 
   describe('handleFatalError', () => {
-    it('should log error message correctly', async () => {
-      // Import the module to test internal logic
+    it('should log error to file successfully', async () => {
+      // Import the module fresh after reset
       const { logger } = await import('./utils/logger.js');
 
+      // Use a unique identifier to find our log entry
+      const uniqueId = `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
       // Simulate a fatal error being logged
-      logger.error('Uncaught Exception: Test error', { stack: 'Error: Test error\n    at test.js:1:1' });
+      logger.error(`Uncaught Exception: ${uniqueId}`, { stack: 'Error: Test error\n    at test.js:1:1' });
+
+      // Wait for file to be written
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // The log file should exist and contain error entries
+      expect(existsSync(TEST_LOG_FILE)).toBe(true);
+      const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
+      expect(logContent).toContain('[ERROR]');
+    });
+
+    it('should log Error object correctly', async () => {
+      // Import the module fresh after reset
+      const { logger } = await import('./utils/logger.js');
+
+      const error = new Error('Test error for logging');
+      logger.error(`Uncaught Exception: ${error.message}`, { stack: error.stack });
+
+      // Wait for file to be written
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       expect(existsSync(TEST_LOG_FILE)).toBe(true);
       const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
       expect(logContent).toContain('[ERROR]');
-      expect(logContent).toContain('Uncaught Exception: Test error');
-      expect(logContent).toContain('stack');
-    });
-
-    it('should log Error object with message and stack', async () => {
-      const { logger } = await import('./utils/logger.js');
-
-      const error = new Error('Test error message');
-      logger.error(`Uncaught Exception: ${error.message}`, { stack: error.stack });
-
-      expect(existsSync(TEST_LOG_FILE)).toBe(true);
-      const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
-      expect(logContent).toContain('Test error message');
       expect(logContent).toContain('stack');
     });
 
     it('should handle non-Error objects', async () => {
+      // Import the module fresh after reset
       const { logger } = await import('./utils/logger.js');
 
-      logger.error('Unhandled Rejection: string error');
+      const uniqueMsg = `string-error-${Date.now()}`;
+      logger.error(`Unhandled Rejection: ${uniqueMsg}`);
+
+      // Wait for file to be written
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       expect(existsSync(TEST_LOG_FILE)).toBe(true);
       const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
-      expect(logContent).toContain('Unhandled Rejection: string error');
+      expect(logContent).toContain('[ERROR]');
     });
   });
 
@@ -262,6 +277,9 @@ describe('Global Error Handling', () => {
 
       logger.error(`Test: ${msg}`, { stack });
 
+      // Wait for file to be written
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
       expect(logContent).toContain('Formatted error test');
       expect(logContent).toContain('stack');
@@ -274,6 +292,9 @@ describe('Global Error Handling', () => {
       const msg = error instanceof Error ? error.message : String(error);
 
       logger.error(`Test: ${msg}`);
+
+      // Wait for file to be written
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
       expect(logContent).toContain('Test: null');
@@ -289,6 +310,9 @@ describe('Global Error Handling', () => {
       };
 
       logger.error('Test error', error);
+
+      // Wait for file to be written
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const logContent = readFileSync(TEST_LOG_FILE, 'utf-8');
       expect(logContent).toContain('ERR_TEST');

@@ -4,6 +4,7 @@ import type { KeyEvent, TextareaRenderable } from '@opentui/core';
 import { styles } from './ui.js';
 import { getTheme, setTheme, saveSnapshot, getToken } from './config.js';
 import { apiClient } from './api.js';
+import { logger } from './logger.js';
 import type { User, Agent } from '../types/index.js';
 
 // ─── Theme definitions (opencode) ─────────────────────────────────────────────
@@ -166,7 +167,13 @@ async function executeSlashCommand(input: string): Promise<boolean> {
 
     process.argv = originalArgv;
   } catch (error) {
-    captured.push(styles.error(error instanceof Error ? error.message : 'Command failed'));
+    const msg = error instanceof Error ? error.message : 'Command failed';
+    logger.error('Slash command execution failed', { 
+      command: trimmed, 
+      error: msg,
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    captured.push(styles.error(msg));
   } finally {
     process.stdout.write = origWrite as typeof process.stdout.write;
     process.stderr.write = origErrWrite as typeof process.stderr.write;
@@ -193,7 +200,9 @@ async function fetchUserProfile(): Promise<User | null> {
     if (!token) return null;
     const response = await apiClient.get<{ user: User }>('/auth/me');
     return response.success ? response.data.user : null;
-  } catch {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to fetch user profile', { error: msg });
     return null;
   }
 }
@@ -205,7 +214,9 @@ async function fetchAgentList(): Promise<Agent[]> {
     if (!token) return [];
     const response = await apiClient.get<Agent[]>('/agents');
     return response.success ? response.data : [];
-  } catch {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to fetch agent list', { error: msg });
     return [];
   }
 }
@@ -458,44 +469,70 @@ function InteractiveShell(props: { initialSnapshot?: {
   });
 
   // Save current state to snapshot
-  const saveSessionState = () => {
-    // Filter out loading entries (they are temporary and shouldn't be saved)
-    const persistentEntries = entries()
-      .filter((e): e is { type: 'user' | 'output' | 'separator' | 'page-break'; text: string } => 
-        e.type !== 'loading'
-      );
-    const snapshot = {
-      id: sessionId(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      entries: persistentEntries,
-      history: history(),
-      theme: themeMode(),
-    };
-    saveSnapshot(snapshot);
-    return snapshot.id;
+  const saveSessionState = (): string | null => {
+    try {
+      // Filter out loading entries (they are temporary and shouldn't be saved)
+      const persistentEntries = entries()
+        .filter((e): e is { type: 'user' | 'output' | 'separator' | 'page-break'; text: string } => 
+          e.type !== 'loading'
+        );
+      const snapshot = {
+        id: sessionId(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        entries: persistentEntries,
+        history: history(),
+        theme: themeMode(),
+      };
+      const success = saveSnapshot(snapshot);
+      if (success) {
+        return snapshot.id;
+      }
+      return null;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to save session state', { error: msg });
+      return null;
+    }
   };
 
   // Cleanup function for exit
   const cleanupAndExit = () => {
-    // Save session state before exit
-    const savedId = saveSessionState();
-    // Reset terminal title
-    renderer.setTerminalTitle('');
-    // Destroy renderer (this handles alternate screen buffer cleanup)
-    renderer.destroy();
-    // Full terminal reset to prevent garbled output
-    // Exit alternate screen buffer
-    process.stdout.write('\x1b[?1049l');
-    // Show cursor
-    process.stdout.write('\x1b[?25h');
-    // Reset all attributes (colors, styles)
-    process.stdout.write('\x1b[0m');
-    // Clear any remaining line content
-    process.stdout.write('\x1b[K');
-    // Print session ID to stdout so user can resume later
-    process.stdout.write(`\nSession saved: ${savedId}\n`);
-    process.stdout.write(`Resume with: magic-im -s ${savedId}\n\n`);
+    try {
+      // Save session state before exit
+      const savedId = saveSessionState();
+      // Reset terminal title
+      renderer.setTerminalTitle('');
+      // Destroy renderer (this handles alternate screen buffer cleanup)
+      renderer.destroy();
+      // Full terminal reset to prevent garbled output
+      // Exit alternate screen buffer
+      process.stdout.write('\x1b[?1049l');
+      // Show cursor
+      process.stdout.write('\x1b[?25h');
+      // Reset all attributes (colors, styles)
+      process.stdout.write('\x1b[0m');
+      // Clear any remaining line content
+      process.stdout.write('\x1b[K');
+      // Print session ID to stdout so user can resume later (only if save succeeded)
+      if (savedId) {
+        process.stdout.write(`\nSession saved: ${savedId}\n`);
+        process.stdout.write(`Resume with: magic-im -s ${savedId}\n\n`);
+      } else {
+        process.stdout.write('\nGoodbye!\n');
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('Error during cleanup', { error: msg });
+      // Still try to reset terminal even if cleanup fails
+      try {
+        process.stdout.write('\x1b[?1049l');
+        process.stdout.write('\x1b[?25h');
+        process.stdout.write('\x1b[0m');
+      } catch {
+        // Ignore terminal reset errors
+      }
+    }
     process.exit(0);
   };
 
@@ -1102,20 +1139,27 @@ export async function startInteractiveMode(snapshot?: {
 } | null): Promise<void> {
   // Signal handlers for graceful cleanup on abnormal exit
   const handleSignal = (signal: string) => {
+    logger.info('Interactive mode received signal', { signal });
     resetTerminal();
     process.stdout.write(`\nReceived ${signal}, exiting...\n`);
     process.exit(0);
   };
 
   const handleUncaughtError = (error: Error) => {
+    logger.error('Interactive mode uncaught error', { 
+      error: error.message, 
+      stack: error.stack 
+    });
     resetTerminal();
     process.stderr.write(`\nUncaught error: ${error.message}\n`);
     process.exit(1);
   };
 
   const handleUnhandledRejection = (reason: unknown) => {
-    resetTerminal();
     const msg = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? reason.stack : undefined;
+    logger.error('Interactive mode unhandled rejection', { error: msg, stack });
+    resetTerminal();
     process.stderr.write(`\nUnhandled rejection: ${msg}\n`);
     process.exit(1);
   };

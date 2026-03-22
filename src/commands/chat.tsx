@@ -5,6 +5,7 @@ import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
 import { UI, styles } from '../utils/ui.js';
 import { getAgentToken } from '../utils/config.js';
+import { logger } from '../utils/logger.js';
 import type { Message } from '../types/index.js';
 
 // ─── Theme (opencode dark) ────────────────────────────────────────────────────
@@ -44,6 +45,10 @@ function ChatUI(props: ChatUIProps) {
   let textarea: TextareaRenderable | undefined;
 
   // ── Poll for new messages every 1 second ────────────────────────────────────
+  // Track consecutive poll errors to avoid log spam
+  let consecutivePollErrors = 0;
+  const MAX_POLL_ERRORS_TO_LOG = 3;
+  
   createEffect(() => {
     const tick = async () => {
       try {
@@ -65,8 +70,23 @@ function ChatUI(props: ChatUIProps) {
           if (last) setLastMessageId(last.id);
           setMsgCount((c) => c + newMsgs.length);
         }
-      } catch {
-        // silent polling errors
+        // Reset error count on success
+        consecutivePollErrors = 0;
+      } catch (error) {
+        consecutivePollErrors++;
+        // Only log first few consecutive errors to avoid log spam
+        if (consecutivePollErrors <= MAX_POLL_ERRORS_TO_LOG) {
+          const msg = error instanceof Error ? error.message : String(error);
+          logger.error('Message poll failed', { 
+            error: msg, 
+            consecutiveErrors: consecutivePollErrors,
+            target: props.targetName 
+          });
+        }
+        // Show error in status line after multiple failures
+        if (consecutivePollErrors >= 3) {
+          setStatusLine('Connection issue - retrying...');
+        }
       }
     };
 
@@ -92,7 +112,14 @@ function ChatUI(props: ChatUIProps) {
       });
       setStatusLine('');
     } catch (error) {
-      setStatusLine(error instanceof Error ? error.message : 'Failed to send');
+      const msg = error instanceof Error ? error.message : 'Failed to send';
+      logger.error('Failed to send message', { 
+        error: msg, 
+        target: props.targetName,
+        receiverId: props.receiverId,
+        receiverFullName: props.receiverFullName
+      });
+      setStatusLine(msg);
     } finally {
       setIsSending(false);
     }
@@ -288,13 +315,27 @@ function ChatUI(props: ChatUIProps) {
 
 // ─── Start chat TUI ───────────────────────────────────────────────────────────
 async function startChatTUI(opts: ChatUIProps): Promise<void> {
-  return render(
-    () => <ChatUI {...opts} />,
-    {
-      stdout: process.stdout,
-      stdin: process.stdin,
-    },
-  );
+  try {
+    return await render(
+      () => <ChatUI {...opts} />,
+      {
+        stdout: process.stdout,
+        stdin: process.stdin,
+      },
+    );
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Chat TUI render failed', { 
+      error: msg, 
+      target: opts.targetName,
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    // Reset terminal on error
+    process.stdout.write('\x1b[?1049l'); // Exit alternate screen
+    process.stdout.write('\x1b[?25h');   // Show cursor
+    process.stdout.write('\x1b[0m');     // Reset attributes
+    throw error;
+  }
 }
 
 // ─── Yargs command module ─────────────────────────────────────────────────────
@@ -309,36 +350,49 @@ const chatCommand: CommandModule<{}, { target?: string; 'agent-id'?: string }> =
       })
       .option('agent-id', { alias: 'i', type: 'string', description: 'Target agent ID' }),
   handler: async (argv) => {
-    // Check agent token
-    const agentToken = getAgentToken();
-    if (!agentToken) {
-      process.stderr.write(
-        UI.error('Agent token required. Use "magic-im auth agent-token <agent_id>" to generate one.') + '\n',
-      );
-      process.exit(1);
-    }
-
-    let receiverId: string | undefined = argv['agent-id'];
-    let receiverFullName: string | undefined;
-
-    if (argv.target) {
-      if (argv.target.includes('#')) {
-        receiverFullName = argv.target;
-      } else {
-        receiverId = argv.target;
+    try {
+      // Check agent token
+      const agentToken = getAgentToken();
+      if (!agentToken) {
+        const errorMsg = 'Agent token required. Use "magic-im auth agent-token <agent_id>" to generate one.';
+        logger.error('Chat command failed: no agent token');
+        process.stderr.write(UI.error(errorMsg) + '\n');
+        process.exit(1);
       }
-    }
 
-    if (!receiverId && !receiverFullName) {
-      process.stderr.write(UI.error('Please provide a target agent (full name or ID)') + '\n');
+      let receiverId: string | undefined = argv['agent-id'];
+      let receiverFullName: string | undefined;
+
+      if (argv.target) {
+        if (argv.target.includes('#')) {
+          receiverFullName = argv.target;
+        } else {
+          receiverId = argv.target;
+        }
+      }
+
+      if (!receiverId && !receiverFullName) {
+        const errorMsg = 'Please provide a target agent (full name or ID)';
+        logger.error('Chat command failed: no target specified');
+        process.stderr.write(UI.error(errorMsg) + '\n');
+        process.exit(1);
+      }
+
+      const targetName = receiverFullName ?? receiverId ?? 'Unknown';
+
+      logger.info('Starting chat session', { target: targetName, receiverId, receiverFullName });
+      UI.println(UI.success(`Starting chat with ${targetName}...`));
+
+      await startChatTUI({ targetName, receiverId, receiverFullName });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('Chat command failed', { 
+        error: msg, 
+        stack: error instanceof Error ? error.stack : undefined 
+      });
+      process.stderr.write(UI.error(msg) + '\n');
       process.exit(1);
     }
-
-    const targetName = receiverFullName ?? receiverId ?? 'Unknown';
-
-    UI.println(UI.success(`Starting chat with ${targetName}...`));
-
-    await startChatTUI({ targetName, receiverId, receiverFullName });
   },
 };
 

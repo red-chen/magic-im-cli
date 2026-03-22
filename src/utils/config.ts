@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlink
 import { homedir } from 'os';
 import { join } from 'path';
 import { Config, Language, SessionSnapshot } from '../types/index.js';
+import { logger } from './logger.js';
 
 // Config file path: ~/.magic-im/settings.json
 const CONFIG_DIR = join(homedir(), '.magic-im');
@@ -14,9 +15,16 @@ const defaultConfig: Config = {
 };
 
 // Ensure config directory exists
-const ensureConfigDir = (): void => {
-  if (!existsSync(CONFIG_DIR)) {
-    mkdirSync(CONFIG_DIR, { recursive: true });
+const ensureConfigDir = (): boolean => {
+  try {
+    if (!existsSync(CONFIG_DIR)) {
+      mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+    return true;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to create config directory', { path: CONFIG_DIR, error: msg });
+    return false;
   }
 };
 
@@ -27,16 +35,26 @@ const readConfig = (): Config => {
       const data = readFileSync(CONFIG_FILE, 'utf-8');
       return { ...defaultConfig, ...JSON.parse(data) };
     }
-  } catch {
-    // Ignore read errors
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to read config file', { path: CONFIG_FILE, error: msg });
   }
   return { ...defaultConfig };
 };
 
 // Write config to file
-const writeConfig = (config: Config): void => {
-  ensureConfigDir();
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+const writeConfig = (config: Config): boolean => {
+  try {
+    if (!ensureConfigDir()) {
+      return false;
+    }
+    writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to write config file', { path: CONFIG_FILE, error: msg });
+    return false;
+  }
 };
 
 // In-memory cache
@@ -121,16 +139,32 @@ export const getConfigFilePath = (): string => {
 
 // ─── Session Snapshot Functions ───────────────────────────────────────────────
 
-const ensureSnapshotDir = (): void => {
-  if (!existsSync(SNAPSHOT_DIR)) {
-    mkdirSync(SNAPSHOT_DIR, { recursive: true });
+const ensureSnapshotDir = (): boolean => {
+  try {
+    if (!existsSync(SNAPSHOT_DIR)) {
+      mkdirSync(SNAPSHOT_DIR, { recursive: true });
+    }
+    return true;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to create snapshot directory', { path: SNAPSHOT_DIR, error: msg });
+    return false;
   }
 };
 
-export const saveSnapshot = (snapshot: SessionSnapshot): void => {
-  ensureSnapshotDir();
-  const filePath = join(SNAPSHOT_DIR, `${snapshot.id}.json`);
-  writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+export const saveSnapshot = (snapshot: SessionSnapshot): boolean => {
+  try {
+    if (!ensureSnapshotDir()) {
+      return false;
+    }
+    const filePath = join(SNAPSHOT_DIR, `${snapshot.id}.json`);
+    writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to save snapshot', { id: snapshot.id, error: msg });
+    return false;
+  }
 };
 
 export const loadSnapshot = (id: string): SessionSnapshot | null => {
@@ -140,20 +174,24 @@ export const loadSnapshot = (id: string): SessionSnapshot | null => {
       const data = readFileSync(filePath, 'utf-8');
       return JSON.parse(data) as SessionSnapshot;
     }
-  } catch {
-    // Ignore read errors
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to load snapshot', { id, path: filePath, error: msg });
   }
   return null;
 };
 
-export const deleteSnapshot = (id: string): void => {
+export const deleteSnapshot = (id: string): boolean => {
   const filePath = join(SNAPSHOT_DIR, `${id}.json`);
   try {
     if (existsSync(filePath)) {
       unlinkSync(filePath);
     }
-  } catch {
-    // Ignore delete errors
+    return true;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to delete snapshot', { id, path: filePath, error: msg });
+    return false;
   }
 };
 
@@ -166,13 +204,17 @@ export const listSnapshots = (): SessionSnapshot[] => {
         try {
           const data = readFileSync(join(SNAPSHOT_DIR, f), 'utf-8');
           return JSON.parse(data) as SessionSnapshot;
-        } catch {
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          logger.error('Failed to parse snapshot file', { file: f, error: msg });
           return null;
         }
       })
       .filter((s): s is SessionSnapshot => s !== null)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  } catch {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to list snapshots', { path: SNAPSHOT_DIR, error: msg });
     return [];
   }
 };
