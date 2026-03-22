@@ -3,6 +3,7 @@ import { apiClient } from '../utils/api.js';
 import { setToken, clearToken, setAgentToken, clearAgentToken, getToken } from '../utils/config.js';
 import { UI, spinner } from '../utils/ui.js';
 import type { User, Agent } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 // ─── sign-up ─────────────────────────────────────────────────────────────────
 const signUp: CommandModule<{}, { email: string; nickname: string; password: string }> = {
@@ -29,7 +30,9 @@ const signUp: CommandModule<{}, { email: string; nickname: string; password: str
       }
     } catch (error) {
       stop();
-      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Sign up failed') + '\n');
+      const msg = error instanceof Error ? error.message : 'Sign up failed';
+      logger.error('sign-up failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(UI.error(msg) + '\n');
       process.exit(1);
     }
   },
@@ -58,7 +61,9 @@ const signIn: CommandModule<{}, { email: string; password: string }> = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Sign in failed') + '\n');
+      const msg = error instanceof Error ? error.message : 'Sign in failed';
+      logger.error('sign-in failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(UI.error(msg) + '\n');
       process.exit(1);
     }
   },
@@ -87,7 +92,9 @@ const signinShortcut: CommandModule<{}, { mail: string; password: string }> = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Sign in failed') + '\n');
+      const msg = error instanceof Error ? error.message : 'Sign in failed';
+      logger.error('signin failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(UI.error(msg) + '\n');
       process.exit(1);
     }
   },
@@ -132,7 +139,9 @@ const agentToken: CommandModule<{}, { agent_id: string }> = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Failed to generate agent token') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to generate agent token';
+      logger.error('agent-token failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(UI.error(msg) + '\n');
       process.exit(1);
     }
   },
@@ -155,7 +164,9 @@ const refresh: CommandModule = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(UI.error(error instanceof Error ? error.message : 'Failed to refresh token') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to refresh token';
+      logger.error('refresh failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(UI.error(msg) + '\n');
       process.exit(1);
     }
   },

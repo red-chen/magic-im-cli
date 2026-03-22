@@ -8,10 +8,10 @@
     "magic-im": "./bin/magic-im.js"
   },
   "scripts": {
-    "dev": ".bun/bin/bun run src/index.ts",
-    "build": ".bun/bin/bun run scripts/build.ts",
+    "dev": "bun run src/index.ts",
+    "build": "bun run scripts/build.ts",
     "typecheck": "tsc --noEmit",
-    "start": ".bun/bin/bun run dist/index.js",
+    "start": "bun run dist/index.js",
     "test": "vitest",
     "test:run": "vitest run"
   },

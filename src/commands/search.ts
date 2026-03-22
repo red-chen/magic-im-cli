@@ -3,6 +3,7 @@ import { apiClient } from '../utils/api.js';
 import { UI, spinner } from '../utils/ui.js';
 import { formatSuccess, formatError, formatAgentList, formatUserList } from '../utils/format.js';
 import type { Agent, User } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 // ─── search agents ───────────────────────────────────────────────────────────
 const searchAgents: CommandModule<{}, { keyword: string }> = {
@@ -25,7 +26,9 @@ const searchAgents: CommandModule<{}, { keyword: string }> = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Search failed') + '\n');
+      const msg = error instanceof Error ? error.message : 'Search failed';
+      logger.error('search agents failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -52,7 +55,9 @@ const searchUsers: CommandModule<{}, { keyword: string }> = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Search failed') + '\n');
+      const msg = error instanceof Error ? error.message : 'Search failed';
+      logger.error('search users failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },

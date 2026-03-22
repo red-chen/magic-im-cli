@@ -4,6 +4,7 @@ import { UI, spinner, createAgentTable, createSuccessBox, createErrorBox, sectio
 import { t } from '../utils/i18n.js';
 import { isJsonMode } from '../index.js';
 import type { Agent } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 const VISIBILITY_MAP: Record<string, string> = {
   public: 'PUBLIC',
@@ -41,7 +42,9 @@ const agentCreate: CommandModule<{}, { name: string; visibility: string }> = {
       }
     } catch (error) {
       stop();
-      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to create agent')));
+      const msg = error instanceof Error ? error.message : 'Failed to create agent';
+      logger.error('agent create failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      UI.println(createErrorBox(UI.error(msg)));
       process.exit(1);
     }
   },
@@ -67,13 +70,12 @@ const agentList: CommandModule = {
       }
     } catch (error) {
       stop();
+      const msg = error instanceof Error ? error.message : 'Failed to list agents';
+      logger.error('agent list failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
       if (isJsonMode) {
-        process.stdout.write(
-          JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Failed to list agents' }) +
-            '\n',
-        );
+        process.stdout.write(JSON.stringify({ success: false, error: msg }) + '\n');
       } else {
-        UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to list agents')));
+        UI.println(createErrorBox(UI.error(msg)));
       }
       process.exit(1);
     }
@@ -98,7 +100,9 @@ const agentGet: CommandModule<{}, { agent_id: string }> = {
       }
     } catch (error) {
       stop();
-      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to get agent')));
+      const msg = error instanceof Error ? error.message : 'Failed to get agent';
+      logger.error('agent get failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      UI.println(createErrorBox(UI.error(msg)));
       process.exit(1);
     }
   },
@@ -139,7 +143,9 @@ const agentUpdate: CommandModule<{}, { agent_id: string; name?: string; visibili
       }
     } catch (error) {
       stop();
-      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to update agent')));
+      const msg = error instanceof Error ? error.message : 'Failed to update agent';
+      logger.error('agent update failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      UI.println(createErrorBox(UI.error(msg)));
       process.exit(1);
     }
   },
@@ -166,7 +172,9 @@ const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
       UI.println(createSuccessBox(UI.success(t('agentDeleted'))));
     } catch (error) {
       stop();
-      UI.println(createErrorBox(UI.error(error instanceof Error ? error.message : 'Failed to delete agent')));
+      const msg = error instanceof Error ? error.message : 'Failed to delete agent';
+      logger.error('agent delete failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      UI.println(createErrorBox(UI.error(msg)));
       process.exit(1);
     }
   },

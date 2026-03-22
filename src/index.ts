@@ -17,6 +17,25 @@ import { checkFirstRun } from './utils/first-run.js';
 import { showWelcomeBanner, UI } from './utils/ui.js';
 import { startInteractiveMode } from './utils/interactive.js';
 import { loadSnapshot } from './utils/config.js';
+import { logger } from './utils/logger.js';
+
+// Global error handler for uncaught exceptions
+const handleFatalError = (error: unknown, source: string): void => {
+  const msg = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
+  logger.error(`${source}: ${msg}`, { stack });
+  process.stderr.write(UI.error(`${source}: ${msg}`) + '\n');
+  process.exit(1);
+};
+
+// Register global error handlers early
+process.on('uncaughtException', (error: Error) => {
+  handleFatalError(error, 'Uncaught Exception');
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  handleFatalError(reason, 'Unhandled Rejection');
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,25 +52,35 @@ export const setJsonMode = (value: boolean) => {
 };
 
 async function main() {
+  logger.info('CLI started', { args: process.argv.slice(2) });
+
   // Check for JSON mode from environment or args
   if (process.env.MAGIC_IM_JSON || process.argv.includes('--json')) {
     setJsonMode(true);
+    logger.info('JSON mode enabled');
   }
 
   // Check for session restore flag
   const sessionIdx = process.argv.indexOf('-s');
   const sessionId = sessionIdx !== -1 ? process.argv[sessionIdx + 1] : undefined;
   const snapshot = sessionId ? loadSnapshot(sessionId) : null;
+  if (sessionId) {
+    logger.info('Session restore requested', { sessionId });
+  }
 
   // Detect interactive mode: no positional command arg → interactive
+  // But help/version flags should trigger yargs, not interactive mode
+  const helpFlags = ['-h', '--help', '-v', '--version'];
+  const hasHelpFlag = process.argv.slice(2).some((arg) => helpFlags.includes(arg));
   const nonFlagArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('-') && arg !== sessionId);
-  const hasCommand = nonFlagArgs.length > 0;
+  const hasCommand = nonFlagArgs.length > 0 || hasHelpFlag;
 
   // Check if this is the first run and prompt for language
   await checkFirstRun();
 
   if (!hasCommand) {
     // Interactive mode: no command provided, launch TUI shell
+    logger.info('Entering interactive mode');
     showWelcomeBanner();
     await startInteractiveMode(snapshot);
     return;
@@ -106,6 +135,7 @@ async function main() {
 
 main().catch((error: unknown) => {
   const msg = error instanceof Error ? error.message : String(error);
+  logger.error('CLI error', { message: msg, error: error instanceof Error ? error.stack : undefined });
   process.stderr.write(UI.error(msg) + '\n');
   process.exit(1);
 });

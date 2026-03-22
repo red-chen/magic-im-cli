@@ -8,6 +8,7 @@ import {
   formatConversationList,
 } from '../utils/format.js';
 import type { Message, Conversation } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 // ─── message send ────────────────────────────────────────────────────────────
 const messageSend: CommandModule<
@@ -43,7 +44,9 @@ const messageSend: CommandModule<
       if (response.success) UI.println(formatSuccess('Message sent successfully!'));
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to send message') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to send message';
+      logger.error('message send failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -81,7 +84,9 @@ const messagePoll: CommandModule<{}, { 'last-message-id'?: string; limit: number
       }
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to poll messages') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to poll messages';
+      logger.error('message poll failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -113,9 +118,9 @@ const conversationList: CommandModule = {
       if (response.success) UI.println(formatConversationList(response.data));
     } catch (error) {
       stop();
-      process.stderr.write(
-        formatError(error instanceof Error ? error.message : 'Failed to load conversations') + '\n',
-      );
+      const msg = error instanceof Error ? error.message : 'Failed to load conversations';
+      logger.error('conversation list failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -151,7 +156,9 @@ const conversationMessages: CommandModule<{}, { conversation_id: string; page: n
       }
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to load messages') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to load messages';
+      logger.error('conversation messages failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },

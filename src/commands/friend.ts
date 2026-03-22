@@ -3,6 +3,7 @@ import { apiClient } from '../utils/api.js';
 import { UI, spinner } from '../utils/ui.js';
 import { formatSuccess, formatError, formatFriendList, formatFriendRequestList } from '../utils/format.js';
 import type { Friend, FriendRequest } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 // ─── friend add ──────────────────────────────────────────────────────────────
 const friendAdd: CommandModule<{}, { target_full_name: string }> = {
@@ -26,7 +27,9 @@ const friendAdd: CommandModule<{}, { target_full_name: string }> = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to send friend request') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to send friend request';
+      logger.error('friend add failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -48,7 +51,9 @@ const friendRequests: CommandModule = {
       }
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to load friend requests') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to load friend requests';
+      logger.error('friend requests failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -68,7 +73,9 @@ const friendAccept: CommandModule<{}, { request_id: string }> = {
       if (response.success) UI.println(formatSuccess('Friend request accepted!'));
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to accept friend request') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to accept friend request';
+      logger.error('friend accept failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -88,7 +95,9 @@ const friendReject: CommandModule<{}, { request_id: string }> = {
       if (response.success) UI.println(formatSuccess('Friend request rejected!'));
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to reject friend request') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to reject friend request';
+      logger.error('friend reject failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -106,7 +115,9 @@ const friendList: CommandModule = {
       if (response.success) UI.println(formatFriendList(response.data));
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to load friends') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to load friends';
+      logger.error('friend list failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
@@ -126,7 +137,9 @@ const friendRemove: CommandModule<{}, { friend_id: string }> = {
       UI.println(formatSuccess('Friend removed successfully!'));
     } catch (error) {
       stop();
-      process.stderr.write(formatError(error instanceof Error ? error.message : 'Failed to remove friend') + '\n');
+      const msg = error instanceof Error ? error.message : 'Failed to remove friend';
+      logger.error('friend remove failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      process.stderr.write(formatError(msg) + '\n');
       process.exit(1);
     }
   },
