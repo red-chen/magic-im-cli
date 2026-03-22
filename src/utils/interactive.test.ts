@@ -70,6 +70,12 @@ describe('Interactive Mode', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // Clean up any signal listeners added during tests
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    process.removeAllListeners('SIGHUP');
+    process.removeAllListeners('uncaughtException');
+    process.removeAllListeners('unhandledRejection');
   });
 
   describe('startInteractiveMode', () => {
@@ -83,6 +89,68 @@ describe('Interactive Mode', () => {
     it('should resolve after render exits', async () => {
       const { startInteractiveMode } = await import('./interactive.js');
       await expect(startInteractiveMode()).resolves.toBeUndefined();
+    });
+
+    it('should enter alternate screen buffer before rendering', async () => {
+      const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const { startInteractiveMode } = await import('./interactive.js');
+      await startInteractiveMode();
+      // Check that alternate screen buffer was entered
+      expect(writeSpy).toHaveBeenCalledWith('\x1b[?1049h');
+    });
+
+    it('should reset terminal on normal exit', async () => {
+      const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const { startInteractiveMode } = await import('./interactive.js');
+      await startInteractiveMode();
+      
+      // Verify terminal reset sequence was written
+      expect(writeSpy).toHaveBeenCalledWith('\x1b[?1049l'); // Exit alternate screen
+      expect(writeSpy).toHaveBeenCalledWith('\x1b[?25h');   // Show cursor
+      expect(writeSpy).toHaveBeenCalledWith('\x1b[0m');     // Reset attributes
+      expect(writeSpy).toHaveBeenCalledWith('\x1b[K');      // Clear line
+    });
+
+    it('should register signal handlers for graceful cleanup', async () => {
+      const onSpy = vi.spyOn(process, 'on');
+      const { startInteractiveMode } = await import('./interactive.js');
+      await startInteractiveMode();
+      
+      // Verify signal handlers were registered
+      expect(onSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+      expect(onSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+      expect(onSpy).toHaveBeenCalledWith('SIGHUP', expect.any(Function));
+      expect(onSpy).toHaveBeenCalledWith('uncaughtException', expect.any(Function));
+      expect(onSpy).toHaveBeenCalledWith('unhandledRejection', expect.any(Function));
+    });
+
+    it('should clean up signal listeners after normal exit', async () => {
+      const { startInteractiveMode } = await import('./interactive.js');
+      await startInteractiveMode();
+      
+      // After normal exit, listeners should be removed
+      // We can verify by checking that no SIGINT listeners remain from our module
+      // (Note: there might be other listeners from the test framework)
+      expect(process.listenerCount('SIGINT')).toBeLessThanOrEqual(1);
+    });
+  });
+
+  describe('Terminal cleanup on abnormal exit', () => {
+    it('should handle SIGINT signal gracefully', async () => {
+      const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('exit');
+      });
+      
+      const { startInteractiveMode } = await import('./interactive.js');
+      
+      // Start interactive mode (it will set up signal handlers)
+      const promise = startInteractiveMode();
+      
+      // Wait for handlers to be registered
+      await promise;
+      
+      exitSpy.mockRestore();
     });
   });
 

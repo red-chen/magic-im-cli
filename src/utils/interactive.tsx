@@ -83,6 +83,12 @@ type Theme = typeof themes.dark;
 // ─── Available commands ───────────────────────────────────────────────────────
 const AVAILABLE_COMMANDS = [
   { command: '/auth sign-in',          description: 'Sign in to your account' },
+  { command: '/friend add',            description: 'Send friend request (e.g., /friend add Bot#User)' },
+  { command: '/friend list',           description: 'List all friends' },
+  { command: '/friend requests',       description: 'List pending friend requests' },
+  { command: '/friend accept',         description: 'Accept a friend request' },
+  { command: '/friend reject',         description: 'Reject a friend request' },
+  { command: '/friend remove',         description: 'Remove a friend' },
   { command: '/search agents',         description: 'Search for agents' },
   { command: '/search users',          description: 'Search for users by nickname or email' },
   { command: '/theme',                 description: 'Toggle light/dark theme' },
@@ -478,8 +484,15 @@ function InteractiveShell(props: { initialSnapshot?: {
     renderer.setTerminalTitle('');
     // Destroy renderer (this handles alternate screen buffer cleanup)
     renderer.destroy();
-    // Exit alternate screen buffer as fallback
+    // Full terminal reset to prevent garbled output
+    // Exit alternate screen buffer
     process.stdout.write('\x1b[?1049l');
+    // Show cursor
+    process.stdout.write('\x1b[?25h');
+    // Reset all attributes (colors, styles)
+    process.stdout.write('\x1b[0m');
+    // Clear any remaining line content
+    process.stdout.write('\x1b[K');
     // Print session ID to stdout so user can resume later
     process.stdout.write(`\nSession saved: ${savedId}\n`);
     process.stdout.write(`Resume with: magic-im -s ${savedId}\n\n`);
@@ -1069,12 +1082,60 @@ function InteractiveShell(props: { initialSnapshot?: {
   );
 }
 
+// ─── Terminal cleanup utilities ─────────────────────────────────────────────
+function resetTerminal(): void {
+  // Exit alternate screen buffer
+  process.stdout.write('\x1b[?1049l');
+  // Show cursor
+  process.stdout.write('\x1b[?25h');
+  // Reset all attributes (colors, styles)
+  process.stdout.write('\x1b[0m');
+  // Clear any remaining line content
+  process.stdout.write('\x1b[K');
+}
+
 // ─── Public entry point ───────────────────────────────────────────────────────
 export async function startInteractiveMode(snapshot?: { 
   entries?: Array<{ type: 'user' | 'output' | 'separator'; text: string }>;
   history?: string[];
   theme?: 'light' | 'dark';
 } | null): Promise<void> {
+  // Signal handlers for graceful cleanup on abnormal exit
+  const handleSignal = (signal: string) => {
+    resetTerminal();
+    process.stdout.write(`\nReceived ${signal}, exiting...\n`);
+    process.exit(0);
+  };
+
+  const handleUncaughtError = (error: Error) => {
+    resetTerminal();
+    process.stderr.write(`\nUncaught error: ${error.message}\n`);
+    process.exit(1);
+  };
+
+  const handleUnhandledRejection = (reason: unknown) => {
+    resetTerminal();
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    process.stderr.write(`\nUnhandled rejection: ${msg}\n`);
+    process.exit(1);
+  };
+
+  // Register signal handlers
+  process.on('SIGINT', () => handleSignal('SIGINT'));
+  process.on('SIGTERM', () => handleSignal('SIGTERM'));
+  process.on('SIGHUP', () => handleSignal('SIGHUP'));
+  process.on('uncaughtException', handleUncaughtError);
+  process.on('unhandledRejection', handleUnhandledRejection);
+
+  // Cleanup function to remove listeners
+  const cleanup = () => {
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    process.removeAllListeners('SIGHUP');
+    process.removeAllListeners('uncaughtException');
+    process.removeAllListeners('unhandledRejection');
+  };
+
   // Enter alternate screen buffer before rendering
   process.stdout.write('\x1b[?1049h');
   
@@ -1087,7 +1148,8 @@ export async function startInteractiveMode(snapshot?: {
       },
     );
   } finally {
-    // Ensure we exit alternate screen buffer even if render throws
-    process.stdout.write('\x1b[?1049l');
+    // Ensure we reset terminal even if render throws
+    resetTerminal();
+    cleanup();
   }
 }
