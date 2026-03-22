@@ -1,6 +1,6 @@
 import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
-import { setToken, clearToken, setAgentToken, clearAgentToken, getToken } from '../utils/config.js';
+import { setToken, clearToken, clearAgentId, getToken } from '../utils/config.js';
 import { UI, spinner } from '../utils/ui.js';
 import type { User, Agent } from '../types/index.js';
 import { logger } from '../utils/logger.js';
@@ -111,35 +111,8 @@ const signOut: CommandModule = {
       stop();
     }
     clearToken();
-    clearAgentToken();
+    clearAgentId();
     UI.println(UI.success('Signed out successfully!'));
-  },
-};
-
-// ─── agent-token ─────────────────────────────────────────────────────────────
-const agentToken: CommandModule<{}, { agent_id: string }> = {
-  command: 'agent-token <agent_id>',
-  describe: 'Generate an access token for an agent',
-  builder: (yargs) =>
-    yargs.positional('agent_id', { type: 'string', demandOption: true, description: 'Agent ID' }),
-  handler: async (argv) => {
-    const stop = spinner('Generating agent token...');
-    try {
-      const response = await apiClient.post<{ agent_token: string; agent: Agent }>('/auth/agent-token', {
-        agent_id: argv.agent_id,
-      });
-      stop();
-      if (response.success) {
-        setAgentToken(response.data.agent_token);
-        UI.println(UI.success('Agent token generated successfully!'));
-        UI.println(UI.info(`Agent: ${response.data.agent.full_name}`));
-      }
-    } catch (error) {
-      stop();
-      const msg = error instanceof Error ? error.message : 'Failed to generate agent token';
-      logger.error('agent-token failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
-      UI.println(UI.error(msg));
-    }
   },
 };
 
@@ -190,7 +163,6 @@ const authCommands: CommandModule = {
       .command(signUp)
       .command(signIn)
       .command(signOut)
-      .command(agentToken)
       .command(refresh)
       .command(status)
       .demandCommand(1, 'Please specify an auth sub-command'),

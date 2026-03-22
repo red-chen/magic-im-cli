@@ -4,7 +4,7 @@ import type { KeyEvent, TextareaRenderable, Selection } from '@opentui/core';
 import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
 import { UI, styles } from '../utils/ui.js';
-import { getAgentToken } from '../utils/config.js';
+import { getAgentId } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
 import type { Message } from '../types/index.js';
 
@@ -27,6 +27,7 @@ const theme = {
 
 interface ChatUIProps {
   targetName: string;
+  agentId: string;
   receiverId?: string;
   receiverFullName?: string;
 }
@@ -55,6 +56,7 @@ function ChatUI(props: ChatUIProps) {
     const tick = async () => {
       try {
         const params = new URLSearchParams();
+        params.append('agent_id', props.agentId);
         if (lastMessageId()) params.append('last_message_id', lastMessageId()!);
         params.append('limit', '50');
 
@@ -108,6 +110,7 @@ function ChatUI(props: ChatUIProps) {
 
     try {
       await apiClient.post('/messages', {
+        agent_id: props.agentId,
         receiver_id: props.receiverId,
         receiver_full_name: props.receiverFullName,
         content: text,
@@ -363,7 +366,7 @@ async function startChatTUI(opts: ChatUIProps): Promise<void> {
 }
 
 // ─── Yargs command module ─────────────────────────────────────────────────────
-const chatCommand: CommandModule<{}, { target?: string; 'agent-id'?: string }> = {
+const chatCommand: CommandModule<{}, { target?: string; 'target-id'?: string; agent?: string }> = {
   command: 'chat [target]',
   describe: 'Start an interactive chat session with an agent',
   builder: (yargs) =>
@@ -372,19 +375,20 @@ const chatCommand: CommandModule<{}, { target?: string; 'agent-id'?: string }> =
         type: 'string',
         description: 'Target agent full name (e.g., AgentName#UserName) or agent ID',
       })
-      .option('agent-id', { alias: 'i', type: 'string', description: 'Target agent ID' }),
+      .option('target-id', { alias: 'i', type: 'string', description: 'Target agent ID' })
+      .option('agent', { alias: 'a', type: 'string', description: 'Your agent ID (or use config default)' }),
   handler: async (argv) => {
     try {
-      // Check agent token
-      const agentToken = getAgentToken();
-      if (!agentToken) {
-        const errorMsg = 'Agent token required. Use "magic-im auth agent-token <agent_id>" to generate one.';
-        logger.error('Chat command failed: no agent token');
+      // Get agent ID from option or config
+      const agentId = argv.agent || getAgentId();
+      if (!agentId) {
+        const errorMsg = 'Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"';
+        logger.error('Chat command failed: no agent ID');
         process.stderr.write(UI.error(errorMsg) + '\n');
         process.exit(1);
       }
 
-      let receiverId: string | undefined = argv['agent-id'];
+      let receiverId: string | undefined = argv['target-id'];
       let receiverFullName: string | undefined;
 
       if (argv.target) {
@@ -404,10 +408,10 @@ const chatCommand: CommandModule<{}, { target?: string; 'agent-id'?: string }> =
 
       const targetName = receiverFullName ?? receiverId ?? 'Unknown';
 
-      logger.info('Starting chat session', { target: targetName, receiverId, receiverFullName });
+      logger.info('Starting chat session', { target: targetName, agentId, receiverId, receiverFullName });
       UI.println(UI.success(`Starting chat with ${targetName}...`));
 
-      await startChatTUI({ targetName, receiverId, receiverFullName });
+      await startChatTUI({ targetName, agentId, receiverId, receiverFullName });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logger.error('Chat command failed', { 

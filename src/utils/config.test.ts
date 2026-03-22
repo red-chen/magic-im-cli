@@ -35,7 +35,7 @@ describe('config', () => {
       const config = getConfig();
       expect(config.apiUrl).toBe('http://localhost:3000');
       expect(config.token).toBeUndefined();
-      expect(config.agentToken).toBeUndefined();
+      expect(config.currentAgentId).toBeUndefined();
       expect(config.language).toBeUndefined();
     });
 
@@ -58,17 +58,17 @@ describe('config', () => {
       expect(getToken()).toBeUndefined();
     });
 
-    it('should set and get agent token', async () => {
-      const { setAgentToken, getAgentToken } = await import('./config.js');
-      setAgentToken('agent-token');
-      expect(getAgentToken()).toBe('agent-token');
+    it('should set and get agent ID', async () => {
+      const { setAgentId, getAgentId } = await import('./config.js');
+      setAgentId('test-agent-id');
+      expect(getAgentId()).toBe('test-agent-id');
     });
 
-    it('should clear agent token', async () => {
-      const { setAgentToken, clearAgentToken, getAgentToken } = await import('./config.js');
-      setAgentToken('agent-token');
-      clearAgentToken();
-      expect(getAgentToken()).toBeUndefined();
+    it('should clear agent ID', async () => {
+      const { setAgentId, clearAgentId, getAgentId } = await import('./config.js');
+      setAgentId('test-agent-id');
+      clearAgentId();
+      expect(getAgentId()).toBeUndefined();
     });
 
     it('should set and get language', async () => {

@@ -115,17 +115,17 @@ export const clearToken = (): void => {
   setConfigValue('token', undefined);
 };
 
-export const getAgentToken = (): string | undefined => {
+export const getAgentId = (): string | undefined => {
   const config = getConfigInternal();
-  return config.agentToken;
+  return config.currentAgentId;
 };
 
-export const setAgentToken = (token: string): void => {
-  setConfigValue('agentToken', token);
+export const setAgentId = (agentId: string): void => {
+  setConfigValue('currentAgentId', agentId);
 };
 
-export const clearAgentToken = (): void => {
-  setConfigValue('agentToken', undefined);
+export const clearAgentId = (): void => {
+  setConfigValue('currentAgentId', undefined);
 };
 
 export const getApiUrl = (): string => {

@@ -5,7 +5,7 @@ export type ThemeMode = 'light' | 'dark';
 export interface Config {
   apiUrl: string;
   token?: string;
-  agentToken?: string;
+  currentAgentId?: string;
   language?: Language;
   theme?: ThemeMode;
 }

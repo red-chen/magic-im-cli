@@ -4,6 +4,7 @@ import { UI, spinner, createAgentTable, createSuccessBox, createErrorBox, sectio
 import { t } from '../utils/i18n.js';
 import type { Agent } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { setAgentId, getAgentId, clearAgentId } from '../utils/config.js';
 
 // JSON mode flag (for backward compatibility with TUI mode)
 let isJsonMode = false;
@@ -170,12 +171,72 @@ const agentDelete: CommandModule<{}, { agent_id: string; force: boolean }> = {
     try {
       await apiClient.delete(`/agents/${argv.agent_id}`);
       stop();
+      // Clear default agent if deleted
+      if (getAgentId() === argv.agent_id) {
+        clearAgentId();
+      }
       UI.println(createSuccessBox(UI.success(t('agentDeleted'))));
     } catch (error) {
       stop();
       const msg = error instanceof Error ? error.message : 'Failed to delete agent';
       logger.error('agent delete failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
       UI.println(createErrorBox(UI.error(msg)));
+    }
+  },
+};
+
+// ─── agent use ──────────────────────────────────────────────────────────────
+const agentUse: CommandModule<{}, { agent_id: string }> = {
+  command: 'use <agent_id>',
+  describe: 'Set the default agent for commands',
+  builder: (yargs) =>
+    yargs.positional('agent_id', { type: 'string', demandOption: true, description: 'Agent ID to use as default' }),
+  handler: async (argv) => {
+    // Verify agent exists and belongs to user
+    const stop = spinner('Verifying agent...');
+    try {
+      const response = await apiClient.get<Agent>(`/agents/${argv.agent_id}`);
+      stop();
+      if (response.success) {
+        setAgentId(argv.agent_id);
+        UI.println(createSuccessBox(UI.success(`Default agent set to: ${response.data.full_name}`)));
+      }
+    } catch (error) {
+      stop();
+      const msg = error instanceof Error ? error.message : 'Failed to verify agent';
+      logger.error('agent use failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      UI.println(createErrorBox(UI.error(msg)));
+    }
+  },
+};
+
+// ─── agent current ──────────────────────────────────────────────────────────
+const agentCurrent: CommandModule = {
+  command: 'current',
+  describe: 'Show the current default agent',
+  handler: async () => {
+    const agentId = getAgentId();
+    if (!agentId) {
+      UI.println(UI.info('No default agent set. Use "magic-im agent use <agent_id>" to set one.'));
+      return;
+    }
+
+    const stop = spinner('Loading agent...');
+    try {
+      const response = await apiClient.get<Agent>(`/agents/${agentId}`);
+      stop();
+      if (response.success) {
+        sectionHeader('Current Default Agent');
+        UI.println(createAgentTable([response.data]));
+        divider();
+      }
+    } catch (error) {
+      stop();
+      // Agent may have been deleted
+      clearAgentId();
+      const msg = error instanceof Error ? error.message : 'Failed to get agent';
+      logger.error('agent current failed', { message: msg, stack: error instanceof Error ? error.stack : undefined });
+      UI.println(UI.info('Default agent no longer exists. Cleared.'));
     }
   },
 };
@@ -191,6 +252,8 @@ const agentCommands: CommandModule = {
       .command(agentGet)
       .command(agentUpdate)
       .command(agentDelete)
+      .command(agentUse)
+      .command(agentCurrent)
       .demandCommand(1, 'Please specify an agent sub-command'),
   handler: () => {},
 };
