@@ -1,6 +1,6 @@
-import { render, useKeyboard, useTerminalDimensions } from '@opentui/solid';
+import { render, useKeyboard, useTerminalDimensions, useRenderer, useSelectionHandler } from '@opentui/solid';
 import { createSignal, createEffect, onCleanup, For, Show } from 'solid-js';
-import type { KeyEvent, TextareaRenderable } from '@opentui/core';
+import type { KeyEvent, TextareaRenderable, Selection } from '@opentui/core';
 import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
 import { UI, styles } from '../utils/ui.js';
@@ -38,9 +38,11 @@ function ChatUI(props: ChatUIProps) {
   const [lastMessageId, setLastMessageId] = createSignal<string | undefined>(undefined);
   const [statusLine, setStatusLine] = createSignal<string>('');
   const [msgCount, setMsgCount] = createSignal(0);
+  const [currentSelection, setCurrentSelection] = createSignal<Selection | null>(null);
 
   const dims = useTerminalDimensions();
   const wide = () => dims().width > 120;
+  const renderer = useRenderer();
 
   let textarea: TextareaRenderable | undefined;
 
@@ -125,8 +127,29 @@ function ChatUI(props: ChatUIProps) {
     }
   };
 
+  // Track text selection for copy functionality
+  useSelectionHandler((selection: Selection) => {
+    setCurrentSelection(selection);
+  });
+
   useKeyboard((evt: KeyEvent) => {
+    // Ctrl+C: exit when no text is selected, otherwise copy selection
     if (evt.ctrl && evt.name === 'c') {
+      const selection = currentSelection();
+      if (selection && selection.isActive) {
+        const selectedText = selection.getSelectedText();
+        if (selectedText && renderer) {
+          const success = renderer.copyToClipboardOSC52(selectedText);
+          if (success) {
+            setStatusLine('Copied to clipboard');
+            setTimeout(() => setStatusLine(''), 2000);
+          } else {
+            setStatusLine('Copy failed - terminal may not support OSC52');
+            setTimeout(() => setStatusLine(''), 3000);
+          }
+          return;
+        }
+      }
       process.exit(0);
     }
   });
@@ -161,7 +184,7 @@ function ChatUI(props: ChatUIProps) {
       >
         <box flexDirection="row" justifyContent="space-between">
           <text fg={theme.text}><b># Chat with {props.targetName}</b></text>
-          <text fg={theme.textMuted} wrapMode="none">Enter to send · Ctrl+C to exit</text>
+          <text fg={theme.textMuted} wrapMode="none">Enter to send · Select text+Ctrl+C to copy · Ctrl+C to exit</text>
         </box>
       </box>
 
@@ -305,6 +328,7 @@ function ChatUI(props: ChatUIProps) {
         <box flexDirection="row" gap={2}>
           <text fg={theme.textMuted}>
             <span style={{ fg: theme.text }}>enter</span> send{'  '}
+            <span style={{ fg: theme.text }}>select+c</span> copy{'  '}
             <span style={{ fg: theme.text }}>ctrl+c</span> exit
           </text>
         </box>
