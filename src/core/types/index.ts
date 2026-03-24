@@ -28,6 +28,7 @@ export interface Agent {
   user_id: string;
   name: string;
   full_name: string;
+  description: string;
   visibility: AgentVisibility;
   created_at: string;
   updated_at: string;

@@ -3,7 +3,8 @@ import type { ApiResponse, Agent, AgentVisibility } from '../types/index.js';
 
 export interface CreateAgentParams {
   name: string;
-  visibility: AgentVisibility;
+  description?: string;
+  visibility?: AgentVisibility;
 }
 
 export interface UpdateAgentParams {
