@@ -6,34 +6,62 @@ import type { Friend, FriendRequest } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { getAgentId } from '../utils/config.js';
 
-// Helper to get agent ID from option or config
-const resolveAgentId = (agentOpt?: string): string | undefined => {
-  return agentOpt || getAgentId();
+// Helper to resolve entity ID from options
+// Returns format: user_id or "agent:{agent_id}"
+const resolveEntityId = (asOpt?: string): { entityId: string; isAgent: boolean } | null => {
+  // If --as agent:xxx is specified
+  if (asOpt?.startsWith('agent:')) {
+    return { entityId: asOpt, isAgent: true };
+  }
+  // If --as user or no --as specified, we need user ID from token
+  // The API will extract user ID from the JWT token, so we pass "user" as placeholder
+  // Actually, we need to pass the actual user ID - this will be handled by the API
+  // For now, return a special marker that tells the API to use the token's user
+  return { entityId: 'user', isAgent: false };
 };
 
 // ─── friend add ──────────────────────────────────────────────────────────────
-const friendAdd: CommandModule<{}, { target_full_name: string; agent?: string }> = {
+// Support: user+user, user+agent, agent+agent
+// Examples:
+//   magic-im friend add yuanhao              # user + user
+//   magic-im friend add coding#yuanhao       # user + agent
+//   magic-im friend add coding#yuanhao --as agent:myAgent  # agent + agent
+const friendAdd: CommandModule<{}, { target_full_name: string; as?: string }> = {
   command: 'add <target_full_name>',
-  describe: 'Send a friend request to an agent',
+  describe: 'Send a friend request (user or agent)',
   builder: (yargs) =>
     yargs
       .positional('target_full_name', {
         type: 'string',
         demandOption: true,
-        description: 'Target agent full name (e.g., AgentName#UserName)',
+        description: 'Target identifier (user nickname or AgentName#UserName for agent)',
       })
-      .option('agent', { alias: 'a', type: 'string', description: 'Your agent ID (or use config default)' }),
+      .option('as', {
+        type: 'string',
+        description: 'Send as user or agent (format: "user" or "agent:{agent_id}")',
+        default: 'user',
+      }),
   handler: async (argv) => {
-    const agentId = resolveAgentId(argv.agent);
-    if (!agentId) {
-      UI.println(formatError('Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"'));
+    const entity = resolveEntityId(argv.as);
+    if (!entity) {
+      UI.println(formatError('Invalid --as format. Use "user" or "agent:{agent_id}"'));
       return;
     }
 
-    const stop = spinner('Sending friend request...');
+    // If sending as agent, validate we have the agent ID
+    if (entity.isAgent) {
+      const configuredAgentId = getAgentId();
+      const requestedAgentId = argv.as?.slice(6); // Remove "agent:" prefix
+      if (configuredAgentId && configuredAgentId !== requestedAgentId) {
+        UI.println(formatError(`Agent ${requestedAgentId} is not your default agent. Use "agent use ${requestedAgentId}" first.`));
+        return;
+      }
+    }
+
+    const stop = spinner(`Sending friend request to ${argv.target_full_name}...`);
     try {
       const response = await apiClient.post<Friend>('/friends/request', {
-        agent_id: agentId,
+        entity_id: entity.entityId,
         target_full_name: argv.target_full_name,
       });
       stop();
@@ -50,22 +78,26 @@ const friendAdd: CommandModule<{}, { target_full_name: string; agent?: string }>
 };
 
 // ─── friend requests ─────────────────────────────────────────────────────────
-const friendRequests: CommandModule<{}, { agent?: string }> = {
+const friendRequests: CommandModule<{}, { as?: string }> = {
   command: 'requests',
   describe: 'List pending friend requests',
   builder: (yargs) =>
-    yargs.option('agent', { alias: 'a', type: 'string', description: 'Your agent ID (or use config default)' }),
+    yargs.option('as', {
+      type: 'string',
+      description: 'View requests for user or agent (format: "user" or "agent:{agent_id}")',
+      default: 'user',
+    }),
   handler: async (argv) => {
-    const agentId = resolveAgentId(argv.agent);
-    if (!agentId) {
-      UI.println(formatError('Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"'));
+    const entity = resolveEntityId(argv.as);
+    if (!entity) {
+      UI.println(formatError('Invalid --as format. Use "user" or "agent:{agent_id}"'));
       return;
     }
 
     const stop = spinner('Loading friend requests...');
     try {
-      const response = await apiClient.get<(FriendRequest & { requester_full_name?: string; target_full_name?: string })[]>(
-        `/friends/requests?agent_id=${agentId}`,
+      const response = await apiClient.get<(FriendRequest & { requester_info?: { type: string; full_name: string } })[]>(
+        `/friends/requests?entity_id=${encodeURIComponent(entity.entityId)}`,
       );
       stop();
       if (response.success) {
@@ -81,24 +113,28 @@ const friendRequests: CommandModule<{}, { agent?: string }> = {
 };
 
 // ─── friend accept ───────────────────────────────────────────────────────────
-const friendAccept: CommandModule<{}, { request_id: string; agent?: string }> = {
+const friendAccept: CommandModule<{}, { request_id: string; as?: string }> = {
   command: 'accept <request_id>',
   describe: 'Accept a friend request',
   builder: (yargs) =>
     yargs
       .positional('request_id', { type: 'string', demandOption: true, description: 'Request ID' })
-      .option('agent', { alias: 'a', type: 'string', description: 'Your agent ID (or use config default)' }),
+      .option('as', {
+        type: 'string',
+        description: 'Accept as user or agent (format: "user" or "agent:{agent_id}")',
+        default: 'user',
+      }),
   handler: async (argv) => {
-    const agentId = resolveAgentId(argv.agent);
-    if (!agentId) {
-      UI.println(formatError('Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"'));
+    const entity = resolveEntityId(argv.as);
+    if (!entity) {
+      UI.println(formatError('Invalid --as format. Use "user" or "agent:{agent_id}"'));
       return;
     }
 
     const stop = spinner('Accepting friend request...');
     try {
       const response = await apiClient.post<Friend>(`/friends/accept/${argv.request_id}`, {
-        agent_id: agentId,
+        entity_id: entity.entityId,
       });
       stop();
       if (response.success) UI.println(formatSuccess('Friend request accepted!'));
@@ -112,24 +148,28 @@ const friendAccept: CommandModule<{}, { request_id: string; agent?: string }> = 
 };
 
 // ─── friend reject ───────────────────────────────────────────────────────────
-const friendReject: CommandModule<{}, { request_id: string; agent?: string }> = {
+const friendReject: CommandModule<{}, { request_id: string; as?: string }> = {
   command: 'reject <request_id>',
   describe: 'Reject a friend request',
   builder: (yargs) =>
     yargs
       .positional('request_id', { type: 'string', demandOption: true, description: 'Request ID' })
-      .option('agent', { alias: 'a', type: 'string', description: 'Your agent ID (or use config default)' }),
+      .option('as', {
+        type: 'string',
+        description: 'Reject as user or agent (format: "user" or "agent:{agent_id}")',
+        default: 'user',
+      }),
   handler: async (argv) => {
-    const agentId = resolveAgentId(argv.agent);
-    if (!agentId) {
-      UI.println(formatError('Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"'));
+    const entity = resolveEntityId(argv.as);
+    if (!entity) {
+      UI.println(formatError('Invalid --as format. Use "user" or "agent:{agent_id}"'));
       return;
     }
 
     const stop = spinner('Rejecting friend request...');
     try {
       const response = await apiClient.post<Friend>(`/friends/reject/${argv.request_id}`, {
-        agent_id: agentId,
+        entity_id: entity.entityId,
       });
       stop();
       if (response.success) UI.println(formatSuccess('Friend request rejected!'));
@@ -143,21 +183,25 @@ const friendReject: CommandModule<{}, { request_id: string; agent?: string }> = 
 };
 
 // ─── friend list ─────────────────────────────────────────────────────────────
-const friendList: CommandModule<{}, { agent?: string }> = {
+const friendList: CommandModule<{}, { as?: string }> = {
   command: 'list',
   describe: 'List all friends',
   builder: (yargs) =>
-    yargs.option('agent', { alias: 'a', type: 'string', description: 'Your agent ID (or use config default)' }),
+    yargs.option('as', {
+      type: 'string',
+      description: 'List friends for user or agent (format: "user" or "agent:{agent_id}")',
+      default: 'user',
+    }),
   handler: async (argv) => {
-    const agentId = resolveAgentId(argv.agent);
-    if (!agentId) {
-      UI.println(formatError('Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"'));
+    const entity = resolveEntityId(argv.as);
+    if (!entity) {
+      UI.println(formatError('Invalid --as format. Use "user" or "agent:{agent_id}"'));
       return;
     }
 
     const stop = spinner('Loading friends...');
     try {
-      const response = await apiClient.get<Friend[]>(`/friends?agent_id=${agentId}`);
+      const response = await apiClient.get<Friend[]>(`/friends?entity_id=${encodeURIComponent(entity.entityId)}`);
       stop();
       if (response.success) UI.println(formatFriendList(response.data));
     } catch (error) {
@@ -170,23 +214,27 @@ const friendList: CommandModule<{}, { agent?: string }> = {
 };
 
 // ─── friend remove ───────────────────────────────────────────────────────────
-const friendRemove: CommandModule<{}, { friend_id: string; agent?: string }> = {
+const friendRemove: CommandModule<{}, { friend_id: string; as?: string }> = {
   command: 'remove <friend_id>',
   describe: 'Remove a friend',
   builder: (yargs) =>
     yargs
-      .positional('friend_id', { type: 'string', demandOption: true, description: 'Friend ID' })
-      .option('agent', { alias: 'a', type: 'string', description: 'Your agent ID (or use config default)' }),
+      .positional('friend_id', { type: 'string', demandOption: true, description: 'Friendship ID' })
+      .option('as', {
+        type: 'string',
+        description: 'Remove as user or agent (format: "user" or "agent:{agent_id}")',
+        default: 'user',
+      }),
   handler: async (argv) => {
-    const agentId = resolveAgentId(argv.agent);
-    if (!agentId) {
-      UI.println(formatError('Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"'));
+    const entity = resolveEntityId(argv.as);
+    if (!entity) {
+      UI.println(formatError('Invalid --as format. Use "user" or "agent:{agent_id}"'));
       return;
     }
 
     const stop = spinner('Removing friend...');
     try {
-      await apiClient.delete(`/friends/${argv.friend_id}?agent_id=${agentId}`);
+      await apiClient.delete(`/friends/${argv.friend_id}?entity_id=${encodeURIComponent(entity.entityId)}`);
       stop();
       UI.println(formatSuccess('Friend removed successfully!'));
     } catch (error) {
@@ -201,7 +249,7 @@ const friendRemove: CommandModule<{}, { friend_id: string; agent?: string }> = {
 // ─── friend group ────────────────────────────────────────────────────────────
 const friendCommands: CommandModule = {
   command: 'friend <command>',
-  describe: 'Friend system commands',
+  describe: 'Friend system commands (supports user+user, user+agent, agent+agent)',
   builder: (yargs) =>
     yargs
       .command(friendAdd)

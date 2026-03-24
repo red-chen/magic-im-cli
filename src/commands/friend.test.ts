@@ -106,7 +106,7 @@ describe('friend commands (yargs)', () => {
         await runCommand(['friend', 'add', 'TestBot#TestUser']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: 'TestBot#TestUser',
         });
       });
@@ -122,7 +122,7 @@ describe('friend commands (yargs)', () => {
         await runCommand(['friend', 'add', 'My-Bot_123#User-Name_456']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: 'My-Bot_123#User-Name_456',
         });
       });
@@ -142,7 +142,7 @@ describe('friend commands (yargs)', () => {
 
         const { uiOutput } = await runCommand(['friend', 'list']);
 
-        expect(apiClient.get).toHaveBeenCalledWith('/friends?agent_id=test-agent-id');
+        expect(apiClient.get).toHaveBeenCalledWith('/friends?entity_id=user');
         expect(uiOutput.length).toBeGreaterThan(0);
       });
 
@@ -156,7 +156,7 @@ describe('friend commands (yargs)', () => {
 
         const { uiOutput } = await runCommand(['friend', 'list']);
 
-        expect(apiClient.get).toHaveBeenCalledWith('/friends?agent_id=test-agent-id');
+        expect(apiClient.get).toHaveBeenCalledWith('/friends?entity_id=user');
         expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
@@ -174,7 +174,7 @@ describe('friend commands (yargs)', () => {
 
         const { uiOutput } = await runCommand(['friend', 'requests']);
 
-        expect(apiClient.get).toHaveBeenCalledWith('/friends/requests?agent_id=test-agent-id');
+        expect(apiClient.get).toHaveBeenCalledWith('/friends/requests?entity_id=user');
         expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
@@ -190,7 +190,7 @@ describe('friend commands (yargs)', () => {
 
         const { uiOutput } = await runCommand(['friend', 'accept', 'request-uuid-123']);
 
-        expect(apiClient.post).toHaveBeenCalledWith('/friends/accept/request-uuid-123', { agent_id: 'test-agent-id' });
+        expect(apiClient.post).toHaveBeenCalledWith('/friends/accept/request-uuid-123', { entity_id: 'user' });
         expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
@@ -206,7 +206,7 @@ describe('friend commands (yargs)', () => {
 
         const { uiOutput } = await runCommand(['friend', 'reject', 'request-uuid-456']);
 
-        expect(apiClient.post).toHaveBeenCalledWith('/friends/reject/request-uuid-456', { agent_id: 'test-agent-id' });
+        expect(apiClient.post).toHaveBeenCalledWith('/friends/reject/request-uuid-456', { entity_id: 'user' });
         expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
@@ -222,7 +222,7 @@ describe('friend commands (yargs)', () => {
 
         const { uiOutput } = await runCommand(['friend', 'remove', 'friend-uuid-789']);
 
-        expect(apiClient.delete).toHaveBeenCalledWith('/friends/friend-uuid-789?agent_id=test-agent-id');
+        expect(apiClient.delete).toHaveBeenCalledWith('/friends/friend-uuid-789?entity_id=user');
         expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
@@ -268,7 +268,7 @@ describe('friend commands (yargs)', () => {
         const { uiOutput, exitCode } = await runCommand(['friend', 'add', 'NonExistent#User']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: 'NonExistent#User',
         });
         expect(uiOutput).toContain('Agent not found');
@@ -441,7 +441,7 @@ describe('friend commands (yargs)', () => {
         await runCommand(['friend', 'add', 'A#B']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: 'A#B',
         });
       });
@@ -460,7 +460,7 @@ describe('friend commands (yargs)', () => {
         await runCommand(['friend', 'add', fullName]);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: fullName,
         });
       });
@@ -476,7 +476,7 @@ describe('friend commands (yargs)', () => {
         await runCommand(['friend', 'add', '机器人#用户']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: '机器人#用户',
         });
       });
@@ -492,7 +492,7 @@ describe('friend commands (yargs)', () => {
         await runCommand(['friend', 'add', 'Bot🤖#User👤']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: 'Bot🤖#User👤',
         });
       });
@@ -508,7 +508,7 @@ describe('friend commands (yargs)', () => {
         await runCommand(['friend', 'add', 'Bot123#User456']);
 
         expect(apiClient.post).toHaveBeenCalledWith('/friends/request', {
-          agent_id: 'test-agent-id',
+          entity_id: 'user',
           target_full_name: 'Bot123#User456',
         });
       });
@@ -525,7 +525,7 @@ describe('friend commands (yargs)', () => {
 
         await runCommand(['friend', 'accept', '550e8400-e29b-41d4-a716-446655440000']);
 
-        expect(apiClient.post).toHaveBeenCalledWith('/friends/accept/550e8400-e29b-41d4-a716-446655440000', { agent_id: 'test-agent-id' });
+        expect(apiClient.post).toHaveBeenCalledWith('/friends/accept/550e8400-e29b-41d4-a716-446655440000', { entity_id: 'user' });
       });
     });
 
@@ -549,7 +549,7 @@ describe('friend commands (yargs)', () => {
 
         const { uiOutput } = await runCommand(['friend', 'list']);
 
-        expect(apiClient.get).toHaveBeenCalledWith('/friends?agent_id=test-agent-id');
+        expect(apiClient.get).toHaveBeenCalledWith('/friends?entity_id=user');
         expect(uiOutput.length).toBeGreaterThan(0);
       });
     });
