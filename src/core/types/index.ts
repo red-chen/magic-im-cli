@@ -111,7 +111,7 @@ export interface AuthSignUpResponse {
   token: string;
 }
 
-export interface AuthSignInResponse {
+export interface AuthLoginResponse {
   user: User;
   token: string;
 }

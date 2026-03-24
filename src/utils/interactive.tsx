@@ -83,6 +83,8 @@ type Theme = typeof themes.dark;
 
 // ─── Available commands ───────────────────────────────────────────────────────
 const AVAILABLE_COMMANDS = [
+  { command: '/login',                 description: 'Sign in to your account (e.g., /login --mail user@example.com --password pass)' },
+  { command: '/whoami',                description: 'Show current logged-in user info' },
   { command: '/auth sign-in',          description: 'Sign in to your account' },
   { command: '/friend add',            description: 'Send friend request (e.g., /friend add Bot#User)' },
   { command: '/friend list',           description: 'List all friends' },
@@ -118,6 +120,16 @@ async function executeSlashCommand(input: string): Promise<boolean> {
   const cmdStr = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
   const args = cmdStr.split(/\s+/);
 
+  // Inject workspace context for commands that support it
+  const workspace = getWorkspaceContext();
+  if (workspace && !args.some(arg => arg.startsWith('-w') || arg.startsWith('--workspace'))) {
+    // Check if the command is one that supports workspace
+    const workspaceCommands = ['login', 'whoami'];
+    if (workspaceCommands.includes(args[0])) {
+      args.push('--workspace', workspace);
+    }
+  }
+
   const outputLines: string[] = [];
   const origWrite = process.stdout.write.bind(process.stdout);
   const origErrWrite = process.stderr.write.bind(process.stderr);
@@ -144,6 +156,8 @@ async function executeSlashCommand(input: string): Promise<boolean> {
     const searchMod   = await import('../commands/search.js');
     const messageMod  = await import('../commands/message.js');
     const chatMod     = await import('../commands/chat.js');
+    const loginMod    = await import('../commands/login.js');
+    const whoamiMod   = await import('../commands/whoami.js');
 
     const originalArgv = process.argv;
     process.argv = ['node', 'magic-im', ...args];
@@ -158,6 +172,8 @@ async function executeSlashCommand(input: string): Promise<boolean> {
       .command(messageMod.messageCommands)
       .command(messageMod.conversationCommands)
       .command(chatMod.default)
+      .command(loginMod.default)
+      .command(whoamiMod.default)
       .exitProcess(false)
       .fail((_msg: string, err: Error) => {
         if (err) captured.push(styles.error(err.message));
@@ -1131,12 +1147,25 @@ function resetTerminal(): void {
   process.stdout.write('\x1b[K');
 }
 
+// Global workspace context for interactive mode
+let globalWorkspaceContext: string | undefined;
+
+// Get the current workspace context
+export function getWorkspaceContext(): string | undefined {
+  return globalWorkspaceContext;
+}
+
 // ─── Public entry point ───────────────────────────────────────────────────────
-export async function startInteractiveMode(snapshot?: { 
-  entries?: Array<{ type: 'user' | 'output' | 'separator'; text: string }>;
-  history?: string[];
-  theme?: 'light' | 'dark';
-} | null): Promise<void> {
+export async function startInteractiveMode(
+  snapshot?: { 
+    entries?: Array<{ type: 'user' | 'output' | 'separator'; text: string }>;
+    history?: string[];
+    theme?: 'light' | 'dark';
+  } | null,
+  workspace?: string
+): Promise<void> {
+  // Store workspace context globally for command handlers
+  globalWorkspaceContext = workspace;
   // Signal handlers for graceful cleanup on abnormal exit
   const handleSignal = (signal: string) => {
     logger.info('Interactive mode received signal', { signal });

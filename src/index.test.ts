@@ -56,6 +56,81 @@ const cleanupLogs = () => {
   }
 };
 
+describe('CLI Mode Detection', () => {
+  describe('workspace parameter parsing', () => {
+    it('should detect -w short flag with value', () => {
+      const argv = ['node', 'magic-im', '-w', '~/.im/t1'];
+      const workspaceIdx = argv.findIndex((arg) => arg === '-w' || arg === '--workspace');
+      const workspace = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : undefined;
+      
+      expect(workspaceIdx).toBe(2);
+      expect(workspace).toBe('~/.im/t1');
+    });
+
+    it('should detect --workspace long flag with value', () => {
+      const argv = ['node', 'magic-im', '--workspace', '/custom/path'];
+      const workspaceIdx = argv.findIndex((arg) => arg === '-w' || arg === '--workspace');
+      const workspace = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : undefined;
+      
+      expect(workspaceIdx).toBe(2);
+      expect(workspace).toBe('/custom/path');
+    });
+
+    it('should return undefined when no workspace flag', () => {
+      const argv = ['node', 'magic-im'];
+      const workspaceIdx = argv.findIndex((arg) => arg === '-w' || arg === '--workspace');
+      const workspace = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : undefined;
+      
+      expect(workspaceIdx).toBe(-1);
+      expect(workspace).toBeUndefined();
+    });
+
+    it('should exclude workspace value from nonFlagArgs', () => {
+      const argv = ['node', 'magic-im', '-w', '~/.im/t1'];
+      const workspaceIdx = argv.findIndex((arg) => arg === '-w' || arg === '--workspace');
+      const workspace = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : undefined;
+      
+      const nonFlagArgs = argv.slice(2).filter((arg) => 
+        !arg.startsWith('-') && arg !== workspace
+      );
+      
+      // Should be empty - only workspace value is positional-like but should be filtered
+      expect(nonFlagArgs).toEqual([]);
+    });
+
+    it('should detect interactive mode with workspace flag only', () => {
+      const argv = ['node', 'magic-im', '-w', '~/.im/t1'];
+      const workspaceIdx = argv.findIndex((arg) => arg === '-w' || arg === '--workspace');
+      const workspace = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : undefined;
+      
+      const helpFlags = ['-h', '--help', '-v', '--version'];
+      const hasHelpFlag = argv.slice(2).some((arg) => helpFlags.includes(arg));
+      const nonFlagArgs = argv.slice(2).filter((arg) => 
+        !arg.startsWith('-') && arg !== workspace
+      );
+      const hasCommand = nonFlagArgs.length > 0 || hasHelpFlag;
+      
+      expect(hasCommand).toBe(false); // Should enter interactive mode
+    });
+
+    it('should detect CLI mode with command and workspace flag', () => {
+      const argv = ['node', 'magic-im', 'whoami', '-w', '~/.im/t1'];
+      const workspaceIdx = argv.findIndex((arg) => arg === '-w' || arg === '--workspace');
+      const workspace = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : undefined;
+      
+      const helpFlags = ['-h', '--help', '-v', '--version'];
+      const hasHelpFlag = argv.slice(2).some((arg) => helpFlags.includes(arg));
+      const nonFlagArgs = argv.slice(2).filter((arg) => 
+        !arg.startsWith('-') && arg !== workspace
+      );
+      const hasCommand = nonFlagArgs.length > 0 || hasHelpFlag;
+      
+      expect(hasCommand).toBe(true); // Should run CLI mode
+      expect(nonFlagArgs).toEqual(['whoami']);
+    });
+  });
+});
+
 describe('Global Error Handling', () => {
   beforeEach(async () => {
     cleanupLogs();

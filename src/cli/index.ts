@@ -1,5 +1,7 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import loginCommand from '../commands/login.js';
+import whoamiCommand from '../commands/whoami.js';
 
 // Version is injected at build time via define
 declare const __VERSION__: string;
@@ -13,6 +15,8 @@ export async function runCli(): Promise<void> {
     .alias('help', 'h')
     .version('version', 'show version', version)
     .alias('version', 'v')
+    .command(loginCommand)
+    .command(whoamiCommand)
     .epilog(
       [
         'Magic IM CLI',

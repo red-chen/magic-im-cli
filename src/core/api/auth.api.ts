@@ -2,7 +2,7 @@ import { apiClient } from './client.js';
 import type {
   ApiResponse,
   AuthSignUpResponse,
-  AuthSignInResponse,
+  AuthLoginResponse,
   AuthAgentTokenResponse,
   AuthRefreshResponse,
 } from '../types/index.js';
@@ -13,7 +13,7 @@ export interface SignUpParams {
   password: string;
 }
 
-export interface SignInParams {
+export interface LoginParams {
   email: string;
   password: string;
 }
@@ -22,8 +22,8 @@ export async function signUp(params: SignUpParams): Promise<ApiResponse<AuthSign
   return apiClient.post<AuthSignUpResponse>('/auth/sign-up', params);
 }
 
-export async function signIn(params: SignInParams): Promise<ApiResponse<AuthSignInResponse>> {
-  return apiClient.post<AuthSignInResponse>('/auth/sign-in', params);
+export async function login(params: LoginParams): Promise<ApiResponse<AuthLoginResponse>> {
+  return apiClient.post<AuthLoginResponse>('/auth/login', params);
 }
 
 export async function signOut(): Promise<ApiResponse<void>> {

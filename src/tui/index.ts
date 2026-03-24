@@ -16,7 +16,7 @@ async function checkFirstRun(): Promise<void> {
 }
 
 // Start the TUI (interactive mode)
-export async function startTui(sessionId?: string): Promise<void> {
+export async function startTui(sessionId?: string, workspace?: string): Promise<void> {
   // Check first run for language
   await checkFirstRun();
 
@@ -28,7 +28,7 @@ export async function startTui(sessionId?: string): Promise<void> {
   // In a future refactor, we can migrate the interactive shell to use the new core imports
   const { startInteractiveMode } = await import('../utils/interactive.js');
 
-  await startInteractiveMode(snapshot);
+  await startInteractiveMode(snapshot, workspace);
 }
 
 // Re-export session utilities

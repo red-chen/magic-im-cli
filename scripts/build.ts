@@ -20,12 +20,18 @@ const buildTime = new Date().toISOString();
 const result = await Bun.build({
   entrypoints: [resolve(root, 'src/index.ts')],
   outdir: resolve(root, 'dist'),
-  target: 'bun',
+  target: 'node',
   format: 'esm',
   plugins: [solidPlugin],
   tsconfig: resolve(root, 'tsconfig.json'),
   external: [
     // keep heavy native/binary deps external so they're loaded from node_modules
+    'bun:ffi',
+    'tree-sitter',
+    'tree-sitter-javascript',
+    'tree-sitter-typescript',
+    'tree-sitter-markdown',
+    'tree-sitter-zig',
   ],
   sourcemap: 'external',
   define: {

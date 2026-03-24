@@ -34,6 +34,8 @@ vi.mock('../commands/friend.js', () => ({ default: {} }));
 vi.mock('../commands/search.js', () => ({ default: {} }));
 vi.mock('../commands/message.js', () => ({ messageCommands: {}, conversationCommands: {} }));
 vi.mock('../commands/chat.js', () => ({ default: {} }));
+vi.mock('../commands/login.js', () => ({ default: {} }));
+vi.mock('../commands/whoami.js', () => ({ default: {} }));
 
 vi.mock('./ui.js', () => ({
   showWelcomeBanner: vi.fn(),
@@ -179,6 +181,32 @@ describe('Interactive Mode', () => {
       // Verify the command list includes /exit (structure test via source inspection)
       // We test this through the behavior of the module being importable
       expect(true).toBe(true);
+    });
+  });
+
+  describe('Workspace context', () => {
+    it('should export getWorkspaceContext function', async () => {
+      const mod = await import('./interactive.js');
+      expect(mod.getWorkspaceContext).toBeTypeOf('function');
+    });
+
+    it('should return undefined when no workspace is set', async () => {
+      const { getWorkspaceContext, startInteractiveMode } = await import('./interactive.js');
+      await startInteractiveMode(null);
+      // After starting without workspace, should return undefined
+      expect(getWorkspaceContext()).toBeUndefined();
+    });
+
+    it('should store workspace context when provided', async () => {
+      const { getWorkspaceContext, startInteractiveMode } = await import('./interactive.js');
+      await startInteractiveMode(null, '~/.im/t1');
+      expect(getWorkspaceContext()).toBe('~/.im/t1');
+    });
+
+    it('should accept workspace with long path', async () => {
+      const { getWorkspaceContext, startInteractiveMode } = await import('./interactive.js');
+      await startInteractiveMode(null, '/Users/test/.magic-im/workspace1');
+      expect(getWorkspaceContext()).toBe('/Users/test/.magic-im/workspace1');
     });
   });
 });
