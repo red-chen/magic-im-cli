@@ -85,6 +85,7 @@ type Theme = typeof themes.dark;
 const AVAILABLE_COMMANDS = [
   { command: '/login',                 description: 'Sign in to your account (e.g., /login --mail user@example.com --password pass)' },
   { command: '/whoami',                description: 'Show current logged-in user info' },
+  { command: '/agents',                description: 'List all your agents (X/10)' },
   { command: '/auth sign-in',          description: 'Sign in to your account' },
   { command: '/friend add',            description: 'Send friend request (e.g., /friend add Bot#User)' },
   { command: '/friend list',           description: 'List all friends' },
@@ -152,6 +153,7 @@ async function executeSlashCommand(input: string): Promise<boolean> {
     const configMod   = await import('../commands/config.js');
     const authMod     = await import('../commands/auth.js');
     const agentMod    = await import('../commands/agent.js');
+    const { agentsCommand } = await import('../commands/agent.js');
     const friendMod   = await import('../commands/friend.js');
     const searchMod   = await import('../commands/search.js');
     const messageMod  = await import('../commands/message.js');
@@ -167,6 +169,7 @@ async function executeSlashCommand(input: string): Promise<boolean> {
       .command(configMod.default)
       .command(authMod.default)
       .command(agentMod.default)
+      .command(agentsCommand)
       .command(friendMod.default)
       .command(searchMod.default)
       .command(messageMod.messageCommands)
@@ -631,6 +634,7 @@ function InteractiveShell(props: { initialSnapshot?: {
     if (cmdLower.includes('search users')) return 'Searching users...';
     if (cmdLower.includes('search agents')) return 'Searching agents...';
     if (cmdLower.includes('auth')) return 'Authenticating...';
+    if (cmdLower === '/agents' || cmdLower.includes('agent list')) return 'Loading agents...';
     if (cmdLower.includes('agent')) return 'Processing agent...';
     if (cmdLower.includes('friend')) return 'Processing friend request...';
     if (cmdLower.includes('message')) return 'Sending message...';

@@ -1,5 +1,5 @@
 import type { CommandModule } from 'yargs';
-import { createAgent, type CreateAgentParams } from '../core/api/agent.api.js';
+import { createAgent, listAgents, type CreateAgentParams } from '../core/api/agent.api.js';
 import type { AgentVisibility } from '../core/types/index.js';
 import { UI } from '../utils/ui.js';
 import { logger } from '../utils/logger.js';
@@ -7,6 +7,8 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { setToken } from '../core/config/config.js';
+
+const MAX_AGENTS_PER_USER = 10;
 
 interface AgentCreateArgs {
   workspace?: string;
@@ -147,6 +149,95 @@ const agentCreateCommand: CommandModule<{}, AgentCreateArgs> = {
   },
 };
 
+interface AgentListArgs {
+  workspace?: string;
+}
+
+/**
+ * Agent list command - List all agents for the current user
+ * 
+ * Usage: /agent list or /agents
+ */
+const agentListCommand: CommandModule<{}, AgentListArgs> = {
+  command: 'list',
+  describe: 'List all your agents',
+  builder: (yargs) =>
+    yargs
+      .option('workspace', {
+        alias: 'w',
+        type: 'string',
+        description: 'Workspace directory path (default: ~/.magic-im/)',
+        default: join(homedir(), '.magic-im'),
+      }),
+  handler: async (argv) => {
+    try {
+      // Determine workspace path
+      const workspacePath = (argv.workspace || join(homedir(), '.magic-im')).replace(/^~/, homedir());
+      const workspaceConfigFile = join(workspacePath, 'config.json');
+
+      // Check if logged in
+      if (!existsSync(workspaceConfigFile)) {
+        logger.error('No login session found', { workspace: workspacePath });
+        process.stderr.write(UI.error(`Not logged in. Use "magic-im login" to authenticate.`) + '\n');
+        process.exit(1);
+      }
+
+      // Read workspace config for token
+      let token: string;
+      try {
+        const configData = readFileSync(workspaceConfigFile, 'utf-8');
+        const config = JSON.parse(configData);
+        token = config.token;
+        if (!token) {
+          throw new Error('Token not found in config');
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to read workspace config', { error: msg, workspace: workspacePath });
+        process.stderr.write(UI.error(`Failed to read workspace config: ${msg}`) + '\n');
+        process.exit(1);
+      }
+
+      // Set token for API client
+      setToken(token);
+
+      logger.info('Listing agents', { workspace: workspacePath });
+
+      // Call list agents API
+      const response = await listAgents();
+
+      if (!response.success || !response.data) {
+        const errorMsg = response.error
+          ? (typeof response.error === 'string' ? response.error : response.error.message)
+          : 'Failed to list agents';
+        logger.error('List agents failed', { error: errorMsg });
+        process.stderr.write(UI.error(`List agents failed: ${errorMsg}`) + '\n');
+        process.exit(1);
+      }
+
+      const agents = response.data;
+
+      // Output format: (X/10)\n - agent1#nick\n - agent2#nick\n ...
+      UI.println(`(${agents.length}/${MAX_AGENTS_PER_USER})`);
+      for (const agent of agents) {
+        const defaultMark = agent.is_default ? ' (default)' : '';
+        UI.println(` - ${agent.full_name}${defaultMark}`);
+      }
+
+      logger.info('Agents listed successfully', { count: agents.length });
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('Agent list command failed', {
+        error: msg,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      process.stderr.write(UI.error(`List agents failed: ${msg}`) + '\n');
+      process.exit(1);
+    }
+  },
+};
+
 /**
  * Agent command group - Manage agents for your account
  * 
@@ -158,11 +249,23 @@ const agentCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(agentCreateCommand)
-      .demandCommand(1, 'You need to specify a subcommand (e.g., create)'),
+      .command(agentListCommand)
+      .demandCommand(1, 'You need to specify a subcommand (e.g., create, list)'),
   handler: () => {
     // This handler is called when no subcommand is provided
     // yargs will show help automatically due to demandCommand
   },
 };
 
+/**
+ * Standalone /agents command - shorthand for /agent list
+ */
+const agentsCommand: CommandModule<{}, AgentListArgs> = {
+  command: 'agents',
+  describe: 'List all your agents (shorthand for /agent list)',
+  builder: agentListCommand.builder,
+  handler: agentListCommand.handler,
+};
+
 export default agentCommand;
+export { agentsCommand };

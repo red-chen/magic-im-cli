@@ -30,6 +30,7 @@ export interface Agent {
   full_name: string;
   description: string;
   visibility: AgentVisibility;
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -61,28 +62,24 @@ export interface Friend {
 }
 
 // ─── Conversation ───────────────────────────────────────────────────────────
-export type ParticipantType = 'user' | 'agent';
-
+// All conversations are between agents now
 export interface Conversation {
   id: string;
-  participant_1_type: ParticipantType;
-  participant_1_id: string;
-  participant_2_type: ParticipantType;
-  participant_2_id: string;
+  agent1_id: string;
+  agent2_id: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface ConversationWithDetails extends Conversation {
-  other_party_name?: string;
+  other_agent_name?: string;
   last_message?: string;
 }
 
 // ─── Message ────────────────────────────────────────────────────────────────
+// All messages are sent by agents now
 export interface Message {
   id: string;
   conversation_id: string;
-  sender_type: ParticipantType;
   sender_id: string;
   content: string;
   created_at: string;
