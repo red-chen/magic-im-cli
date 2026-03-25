@@ -17,8 +17,9 @@ export async function rejectFriendRequest(requestId: string): Promise<ApiRespons
   return apiClient.post<Friend>(`/friends/reject/${requestId}`);
 }
 
-export async function listFriends(): Promise<ApiResponse<Friend[]>> {
-  return apiClient.get<Friend[]>('/friends');
+export async function listFriends(agentId?: string): Promise<ApiResponse<Friend[]>> {
+  const config = agentId ? { params: { agent_id: agentId } } : undefined;
+  return apiClient.get<Friend[]>('/friends', config);
 }
 
 export async function removeFriend(friendId: string): Promise<ApiResponse<void>> {

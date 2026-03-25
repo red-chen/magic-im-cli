@@ -6,6 +6,7 @@ import agentCommand, { agentsCommand } from '../commands/agent.js';
 import searchCommand from '../commands/search.js';
 import tuiCommand from '../commands/tui.js';
 import switchCommand from '../commands/switch.js';
+import friendCommand, { friendsCommand } from '../commands/friend.js';
 
 // Version is injected at build time via define
 declare const __VERSION__: string;
@@ -25,6 +26,8 @@ export async function runCli(): Promise<void> {
     .command(agentsCommand)
     .command(searchCommand)
     .command(switchCommand)
+    .command(friendCommand)
+    .command(friendsCommand)
     .command(tuiCommand)
     .epilog(
       [
