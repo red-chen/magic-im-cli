@@ -3,6 +3,7 @@ import { hideBin } from 'yargs/helpers';
 import loginCommand from '../commands/login.js';
 import whoamiCommand from '../commands/whoami.js';
 import agentCommand, { agentsCommand } from '../commands/agent.js';
+import searchCommand from '../commands/search.js';
 import tuiCommand from '../commands/tui.js';
 
 // Version is injected at build time via define
@@ -21,6 +22,7 @@ export async function runCli(): Promise<void> {
     .command(whoamiCommand)
     .command(agentCommand)
     .command(agentsCommand)
+    .command(searchCommand)
     .command(tuiCommand)
     .epilog(
       [
