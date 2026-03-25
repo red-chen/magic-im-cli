@@ -3,6 +3,7 @@ import { hideBin } from 'yargs/helpers';
 import loginCommand from '../commands/login.js';
 import whoamiCommand from '../commands/whoami.js';
 import agentCommand, { agentsCommand } from '../commands/agent.js';
+import tuiCommand from '../commands/tui.js';
 
 // Version is injected at build time via define
 declare const __VERSION__: string;
@@ -20,11 +21,12 @@ export async function runCli(): Promise<void> {
     .command(whoamiCommand)
     .command(agentCommand)
     .command(agentsCommand)
+    .command(tuiCommand)
     .epilog(
       [
         'Magic IM CLI',
         '',
-        'Run without a command to enter interactive mode.',
+        'Run "magic-im tui" to enter interactive mode.',
       ].join('\n')
     )
     .fail((msg, err) => {
