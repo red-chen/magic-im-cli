@@ -110,19 +110,6 @@ export const clearToken = (): void => {
   setConfigValue('token', undefined);
 };
 
-export const getAgentToken = (): string | undefined => {
-  const config = getConfigInternal();
-  return config.agentToken;
-};
-
-export const setAgentToken = (token: string): void => {
-  setConfigValue('agentToken', token);
-};
-
-export const clearAgentToken = (): void => {
-  setConfigValue('agentToken', undefined);
-};
-
 export const getApiUrl = (): string => {
   const config = getConfigInternal();
   return config.apiUrl || 'http://localhost:3000';

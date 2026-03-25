@@ -15,6 +15,11 @@ interface WorkspaceConfig {
   userId: string;
   nickname: string;
   createdAt: string;
+  currentAgent?: {
+    id: string;
+    name: string;
+    full_name: string;
+  };
 }
 
 /**
@@ -70,6 +75,13 @@ const whoamiCommand: CommandModule<{}, WhoamiArgs> = {
       UI.println(UI.success(`Logged in as ${config.nickname} (${config.email})`));
       UI.println(UI.info(`User ID: ${config.userId}`));
       UI.println(UI.info(`Workspace: ${workspacePath}`));
+      
+      // Display current agent if set
+      if (config.currentAgent) {
+        UI.println(UI.info(`Current Agent: ${config.currentAgent.full_name} (${config.currentAgent.name})`));
+      } else {
+        UI.println(UI.info('Current Agent: (none selected)'));
+      }
       
       if (config.createdAt) {
         const loginTime = new Date(config.createdAt).toLocaleString();

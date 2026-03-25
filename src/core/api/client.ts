@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 import type { ApiResponse } from '../types/index.js';
-import { getApiUrl, getToken, getAgentToken } from '../config/config.js';
+import { getApiUrl, getToken } from '../config/config.js';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -16,11 +16,7 @@ class ApiClient {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       (config) => {
-        // Try agent token first (for agent-specific operations)
-        const agentToken = getAgentToken();
-        const userToken = getToken();
-
-        const token = agentToken || userToken;
+        const token = getToken();
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }

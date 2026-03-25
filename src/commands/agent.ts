@@ -182,12 +182,14 @@ const agentListCommand: CommandModule<{}, AgentListArgs> = {
         process.exit(1);
       }
 
-      // Read workspace config for token
+      // Read workspace config for token and current agent
       let token: string;
+      let currentAgentId: string | undefined;
       try {
         const configData = readFileSync(workspaceConfigFile, 'utf-8');
         const config = JSON.parse(configData);
         token = config.token;
+        currentAgentId = config.currentAgent?.id;
         if (!token) {
           throw new Error('Token not found in config');
         }
@@ -217,12 +219,12 @@ const agentListCommand: CommandModule<{}, AgentListArgs> = {
 
       const agents = response.data;
 
-      // Output format: (X/10)\n - agent1#nick [visibility] (default)\n - agent2#nick [visibility]\n ...
+      // Output format: (X/10)\n - agent1#nick [visibility] (current)\n - agent2#nick [visibility]\n ...
       UI.println(`(${agents.length}/${MAX_AGENTS_PER_USER})`);
       for (const agent of agents) {
-        const defaultMark = agent.is_default ? ' (default)' : '';
+        const currentMark = agent.id === currentAgentId ? ' (current)' : '';
         const visibilityLabel = `[${agent.visibility.toLowerCase()}]`;
-        UI.println(` - ${agent.full_name} ${visibilityLabel}${defaultMark}`);
+        UI.println(` - ${agent.full_name} ${visibilityLabel}${currentMark}`);
       }
 
       logger.info('Agents listed successfully', { count: agents.length });
