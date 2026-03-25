@@ -217,11 +217,12 @@ const agentListCommand: CommandModule<{}, AgentListArgs> = {
 
       const agents = response.data;
 
-      // Output format: (X/10)\n - agent1#nick\n - agent2#nick\n ...
+      // Output format: (X/10)\n - agent1#nick [visibility] (default)\n - agent2#nick [visibility]\n ...
       UI.println(`(${agents.length}/${MAX_AGENTS_PER_USER})`);
       for (const agent of agents) {
         const defaultMark = agent.is_default ? ' (default)' : '';
-        UI.println(` - ${agent.full_name}${defaultMark}`);
+        const visibilityLabel = `[${agent.visibility.toLowerCase()}]`;
+        UI.println(` - ${agent.full_name} ${visibilityLabel}${defaultMark}`);
       }
 
       logger.info('Agents listed successfully', { count: agents.length });
