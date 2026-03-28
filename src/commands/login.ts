@@ -1,10 +1,13 @@
 import type { CommandModule } from 'yargs';
 import { login, type LoginParams } from '../core/api/auth.api.js';
+import { listAgents } from '../core/api/agent.api.js';
+import { setToken } from '../core/config/config.js';
 import { UI } from '../utils/ui.js';
 import { logger } from '../utils/logger.js';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import type { Agent } from '../core/types/index.js';
 
 interface LoginArgs {
   workspace?: string;
@@ -77,6 +80,24 @@ const loginCommand: CommandModule<{}, LoginArgs> = {
 
       const { token, user } = response.data;
 
+      // Get default agent after login
+      let currentAgent: { id: string; name: string; full_name: string } | undefined;
+      try {
+        setToken(token);
+        const agentsResponse = await listAgents();
+        if (agentsResponse.success && agentsResponse.data && agentsResponse.data.length > 0) {
+          const defaultAgent = agentsResponse.data.find((agent: Agent) => agent.is_default);
+          const agentToUse = defaultAgent || agentsResponse.data[0];
+          currentAgent = {
+            id: agentToUse.id,
+            name: agentToUse.name,
+            full_name: agentToUse.full_name,
+          };
+        }
+      } catch (error) {
+        logger.warn('Failed to get default agent', { error: error instanceof Error ? error.message : String(error) });
+      }
+
       // Save token to workspace config only (workspace-isolated)
       const workspaceConfigDir = workspacePath;
       const workspaceConfigFile = join(workspaceConfigDir, 'config.json');
@@ -87,17 +108,18 @@ const loginCommand: CommandModule<{}, LoginArgs> = {
           mkdirSync(workspaceConfigDir, { recursive: true });
         }
 
-        // Write workspace config
+        // Write workspace config with current agent
         const workspaceConfig = {
           email: argv.mail,
           token: token,
           userId: user.id,
           nickname: user.nickname,
           createdAt: new Date().toISOString(),
+          currentAgent: currentAgent,
         };
 
         writeFileSync(workspaceConfigFile, JSON.stringify(workspaceConfig, null, 2), 'utf-8');
-        logger.info('Workspace config saved', { workspace: workspacePath });
+        logger.info('Workspace config saved', { workspace: workspacePath, currentAgent: currentAgent?.full_name });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         logger.error('Failed to save workspace config', { error: msg, workspace: workspacePath });
@@ -109,6 +131,9 @@ const loginCommand: CommandModule<{}, LoginArgs> = {
       UI.println(UI.success(`Successfully logged in as ${user.nickname} (${user.email})`));
       UI.println(UI.info(`Token saved to: ${workspaceConfigFile}`));
       UI.println(UI.info(`Workspace: ${workspacePath}`));
+      if (currentAgent) {
+        UI.println(UI.info(`Current Agent: ${currentAgent.full_name}`));
+      }
       
       logger.info('Login successful', { 
         userId: user.id, 

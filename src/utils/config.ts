@@ -4,10 +4,20 @@ import { join } from 'path';
 import { Config, Language, SessionSnapshot } from '../types/index.js';
 import { logger } from './logger.js';
 
-// Config file path: ~/.magic-im/settings.json
-const CONFIG_DIR = join(homedir(), '.magic-im');
-const CONFIG_FILE = join(CONFIG_DIR, 'settings.json');
-const SNAPSHOT_DIR = join(CONFIG_DIR, 'snapshots');
+// Default config directory: ~/.magic-im
+let CONFIG_DIR = join(homedir(), '.magic-im');
+let CONFIG_FILE = join(CONFIG_DIR, 'settings.json');
+let SNAPSHOT_DIR = join(CONFIG_DIR, 'snapshots');
+
+// Set workspace directory (called from CLI middleware)
+export const setWorkspace = (workspacePath: string): void => {
+  CONFIG_DIR = workspacePath;
+  CONFIG_FILE = join(CONFIG_DIR, 'settings.json');
+  SNAPSHOT_DIR = join(CONFIG_DIR, 'snapshots');
+  // Clear cache to force re-read from new location
+  configCache = null;
+  logger.info('Workspace set', { path: workspacePath });
+};
 
 // Default config
 const defaultConfig: Config = {
@@ -116,8 +126,27 @@ export const clearToken = (): void => {
 };
 
 export const getAgentId = (): string | undefined => {
+  // First try settings.json
   const config = getConfigInternal();
-  return config.currentAgentId;
+  if (config.currentAgentId) {
+    return config.currentAgentId;
+  }
+  
+  // Then try workspace config.json (where login saves currentAgent)
+  const workspaceConfigFile = join(CONFIG_DIR, 'config.json');
+  try {
+    if (existsSync(workspaceConfigFile)) {
+      const data = readFileSync(workspaceConfigFile, 'utf-8');
+      const workspaceConfig = JSON.parse(data);
+      if (workspaceConfig.currentAgent?.id) {
+        return workspaceConfig.currentAgent.id;
+      }
+    }
+  } catch (error) {
+    // Ignore read errors
+  }
+  
+  return undefined;
 };
 
 export const setAgentId = (agentId: string): void => {

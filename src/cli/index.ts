@@ -1,5 +1,7 @@
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { join } from 'path';
+import { homedir } from 'os';
 import loginCommand from '../commands/login.js';
 import whoamiCommand from '../commands/whoami.js';
 import agentCommand, { agentsCommand } from '../commands/agent.js';
@@ -7,6 +9,8 @@ import searchCommand from '../commands/search.js';
 import tuiCommand from '../commands/tui.js';
 import switchCommand from '../commands/switch.js';
 import friendCommand, { friendsCommand } from '../commands/friend.js';
+import conversationCommand, { conversationsCommand } from '../commands/conversation.js';
+import { setWorkspace } from '../utils/config.js';
 
 // Version is injected at build time via define
 declare const __VERSION__: string;
@@ -20,6 +24,20 @@ export async function runCli(): Promise<void> {
     .alias('help', 'h')
     .version('version', 'show version', version)
     .alias('version', 'v')
+    .option('workspace', {
+      alias: 'w',
+      type: 'string',
+      description: 'Workspace directory path (default: ~/.magic-im/)',
+      default: join(homedir(), '.magic-im'),
+      global: true,
+    })
+    .middleware((argv) => {
+      // Set workspace globally for all commands
+      if (argv.workspace) {
+        const workspacePath = (argv.workspace as string).replace(/^~/, homedir());
+        setWorkspace(workspacePath);
+      }
+    })
     .command(loginCommand)
     .command(whoamiCommand)
     .command(agentCommand)
@@ -28,6 +46,8 @@ export async function runCli(): Promise<void> {
     .command(switchCommand)
     .command(friendCommand)
     .command(friendsCommand)
+    .command(conversationCommand)
+    .command(conversationsCommand)
     .command(tuiCommand)
     .epilog(
       [
