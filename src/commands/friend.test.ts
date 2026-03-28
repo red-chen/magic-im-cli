@@ -201,10 +201,10 @@ describe('friend list command', () => {
       expect(logger.info).toHaveBeenCalledWith('Friends listed successfully', { count: 0 });
     });
 
-    it('friends shorthand command should work same as friend list', async () => {
-      // Test that friendsCommand has the same handler as friend list
+    it('friends command should be a composite command', async () => {
+      // Test that friendsCommand is a composite command showing both friends and requests
       expect(friendsCommand.command).toBe('friends');
-      expect(friendsCommand.describe).toContain('shorthand');
+      expect(friendsCommand.describe).toContain('friends and pending requests');
     });
   });
 
@@ -1642,6 +1642,256 @@ describe('friend accept command', () => {
 
       expect(acceptFriendRequest).toHaveBeenCalledWith('request-2', 'agent-123');
       expect(UI.println).toHaveBeenCalledWith('[SUCCESS] Friend request from buxiao#buxiao accepted');
+    });
+  });
+});
+
+describe('friends composite command', () => {
+  const originalProcessExit = process.exit;
+  const originalStderrWrite = process.stderr.write;
+  let exitCode: number | null = null;
+  let stderrOutput: string = '';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    exitCode = null;
+    stderrOutput = '';
+    
+    // Mock process.exit
+    process.exit = vi.fn((code?: number) => {
+      exitCode = code ?? 0;
+      throw new Error(`Process exit with code ${code}`);
+    }) as never;
+    
+    // Mock process.stderr.write
+    process.stderr.write = vi.fn((msg: string | Uint8Array) => {
+      stderrOutput += msg.toString();
+      return true;
+    }) as never;
+  });
+
+  afterEach(() => {
+    process.exit = originalProcessExit;
+    process.stderr.write = originalStderrWrite;
+  });
+
+  describe('positive tests', () => {
+    it('should display both friends and pending requests', async () => {
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+        token: 'test-token',
+        currentAgent: { id: 'agent-123' },
+      }));
+      vi.mocked(listFriends).mockResolvedValue({
+        success: true,
+        data: [
+          {
+            id: 'friend-1',
+            agent_id: 'agent-123',
+            friend_agent_id: 'agent-456',
+            friend_name: 'buxiao',
+            friend_full_name: 'buxiao#buxiao',
+            created_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+      });
+      vi.mocked(listFriendRequests).mockResolvedValue({
+        success: true,
+        data: [
+          {
+            id: 'request-1',
+            requester_agent_id: 'agent-789',
+            target_agent_id: 'agent-123',
+            status: 'PENDING',
+            requester_full_name: 'helper#alice',
+            target_full_name: 'myagent#user',
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+      });
+
+      await friendsCommand.handler!(createMockArgv({
+        workspace: '/tmp/test-workspace',
+      }));
+
+      expect(listFriends).toHaveBeenCalledWith('agent-123');
+      expect(listFriendRequests).toHaveBeenCalledWith('agent-123');
+      expect(UI.println).toHaveBeenCalledWith('Friends:');
+      expect(UI.println).toHaveBeenCalledWith('  - buxiao#buxiao');
+      expect(UI.println).toHaveBeenCalledWith('');
+      expect(UI.println).toHaveBeenCalledWith('Pending Requests:');
+      expect(UI.println).toHaveBeenCalledWith('  - helper#alice');
+    });
+
+    it('should show (none) when no friends or requests', async () => {
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+        token: 'test-token',
+        currentAgent: { id: 'agent-123' },
+      }));
+      vi.mocked(listFriends).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+      vi.mocked(listFriendRequests).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+
+      await friendsCommand.handler!(createMockArgv({
+        workspace: '/tmp/test-workspace',
+      }));
+
+      expect(UI.println).toHaveBeenCalledWith('Friends:');
+      expect(UI.println).toHaveBeenCalledWith('  (none)');
+      expect(UI.println).toHaveBeenCalledWith('Pending Requests:');
+      expect(UI.println).toHaveBeenCalledWith('  (none)');
+    });
+
+    it('should use default agent when no current agent', async () => {
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+        token: 'test-token',
+        // No currentAgent
+      }));
+      vi.mocked(listAgents).mockResolvedValue({
+        success: true,
+        data: [
+          {
+            id: 'default-agent-123',
+            user_id: 'user-123',
+            name: 'default',
+            full_name: 'default#user',
+            description: '',
+            visibility: 'PRIVATE',
+            is_default: true,
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+      });
+      vi.mocked(listFriends).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+      vi.mocked(listFriendRequests).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+
+      await friendsCommand.handler!(createMockArgv({
+        workspace: '/tmp/test-workspace',
+      }));
+
+      expect(listAgents).toHaveBeenCalled();
+      expect(listFriends).toHaveBeenCalledWith('default-agent-123');
+      expect(listFriendRequests).toHaveBeenCalledWith('default-agent-123');
+    });
+  });
+
+  describe('error handling tests', () => {
+    it('should fail when not logged in', async () => {
+      vi.mocked(existsSync).mockReturnValue(false);
+
+      await expect(friendsCommand.handler!(createMockArgv({
+        workspace: '/tmp/test-workspace',
+      }))).rejects.toThrow();
+
+      expect(exitCode).toBe(1);
+      expect(stderrOutput).toContain('Not logged in');
+    });
+
+    it('should fail when listFriends API returns error', async () => {
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+        token: 'test-token',
+        currentAgent: { id: 'agent-123' },
+      }));
+      vi.mocked(listFriends).mockResolvedValue({
+        success: false,
+        data: null as any,
+        error: { code: 'AGENT_NOT_FOUND', message: 'Agent not found' },
+      });
+      vi.mocked(listFriendRequests).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+
+      await expect(friendsCommand.handler!(createMockArgv({
+        workspace: '/tmp/test-workspace',
+      }))).rejects.toThrow();
+
+      expect(exitCode).toBe(1);
+      expect(stderrOutput).toContain('Agent not found');
+    });
+
+    it('should fail when listFriendRequests API returns error', async () => {
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+        token: 'test-token',
+        currentAgent: { id: 'agent-123' },
+      }));
+      vi.mocked(listFriends).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+      vi.mocked(listFriendRequests).mockResolvedValue({
+        success: false,
+        data: null as any,
+        error: { code: 'ERROR', message: 'Failed to fetch requests' },
+      });
+
+      await expect(friendsCommand.handler!(createMockArgv({
+        workspace: '/tmp/test-workspace',
+      }))).rejects.toThrow();
+
+      expect(exitCode).toBe(1);
+      expect(stderrOutput).toContain('Failed to fetch requests');
+    });
+  });
+
+  describe('boundary tests', () => {
+    it('should handle many friends and requests', async () => {
+      const manyFriends = Array.from({ length: 50 }, (_, i) => ({
+        id: `friend-${i}`,
+        agent_id: 'agent-123',
+        friend_agent_id: `agent-${i + 1000}`,
+        friend_name: `friend${i}`,
+        friend_full_name: `friend${i}#user${i}`,
+        created_at: '2024-01-01T00:00:00Z',
+      }));
+      const manyRequests = Array.from({ length: 30 }, (_, i) => ({
+        id: `request-${i}`,
+        requester_agent_id: `agent-${i + 2000}`,
+        target_agent_id: 'agent-123',
+        status: 'PENDING' as const,
+        requester_full_name: `requester${i}#nick${i}`,
+        target_full_name: 'myagent#user',
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      }));
+
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({
+        token: 'test-token',
+        currentAgent: { id: 'agent-123' },
+      }));
+      vi.mocked(listFriends).mockResolvedValue({
+        success: true,
+        data: manyFriends,
+      });
+      vi.mocked(listFriendRequests).mockResolvedValue({
+        success: true,
+        data: manyRequests,
+      });
+
+      await friendsCommand.handler!(createMockArgv({
+        workspace: '/tmp/test-workspace',
+      }));
+
+      // Friends: header + 50 friends + empty line + Pending Requests: header + 30 requests
+      expect(UI.println).toHaveBeenCalledTimes(1 + 50 + 1 + 1 + 30);
     });
   });
 });

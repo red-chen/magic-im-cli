@@ -4,6 +4,9 @@ import { logger } from '../utils/logger.js';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { listAgents } from '../core/api/agent.api.js';
+import { setToken } from '../core/config/config.js';
+import type { Agent } from '../core/types/index.js';
 
 interface WhoamiArgs {
   workspace?: string;
@@ -76,11 +79,26 @@ const whoamiCommand: CommandModule<{}, WhoamiArgs> = {
       UI.println(UI.info(`User ID: ${config.userId}`));
       UI.println(UI.info(`Workspace: ${workspacePath}`));
       
-      // Display current agent if set
+      // Display current agent
       if (config.currentAgent) {
         UI.println(UI.info(`Current Agent: ${config.currentAgent.full_name} (${config.currentAgent.name})`));
       } else {
-        UI.println(UI.info('Current Agent: (none selected)'));
+        // No current agent set, try to get default agent from API
+        try {
+          setToken(config.token);
+          const agentsResponse = await listAgents();
+          if (agentsResponse.success && agentsResponse.data && agentsResponse.data.length > 0) {
+            // Find default agent or use the first one
+            const defaultAgent = agentsResponse.data.find((agent: Agent) => agent.is_default);
+            const agentToShow = defaultAgent || agentsResponse.data[0];
+            UI.println(UI.info(`Current Agent: ${agentToShow.full_name} (${agentToShow.name})`));
+          } else {
+            UI.println(UI.info('Current Agent: (none selected)'));
+          }
+        } catch {
+          // If API call fails, fall back to showing none selected
+          UI.println(UI.info('Current Agent: (none selected)'));
+        }
       }
       
       if (config.createdAt) {

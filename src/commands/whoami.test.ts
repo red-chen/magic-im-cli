@@ -22,9 +22,18 @@ vi.mock('fs', () => ({
   readFileSync: vi.fn(),
 }));
 
+vi.mock('../core/api/agent.api.js', () => ({
+  listAgents: vi.fn(),
+}));
+
+vi.mock('../core/config/config.js', () => ({
+  setToken: vi.fn(),
+}));
+
 import { UI } from '../utils/ui.js';
 import { logger } from '../utils/logger.js';
 import { existsSync, readFileSync } from 'fs';
+import { listAgents } from '../core/api/agent.api.js';
 import type { CommandModule } from 'yargs';
 
 describe('Whoami Command', () => {
@@ -117,6 +126,152 @@ describe('Whoami Command', () => {
       await handler({ workspace: '~/.im/t1' });
 
       expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('.im'));
+    });
+
+    it('should display default agent when no current agent is set', async () => {
+      const mockConfig = {
+        email: 'leo1@magic-im.cc',
+        token: 'test-token',
+        userId: 'user-123',
+        nickname: 'Leo1',
+        createdAt: '2024-01-01T00:00:00Z',
+        // No currentAgent
+      };
+
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(mockConfig));
+      vi.mocked(listAgents).mockResolvedValue({
+        success: true,
+        data: [
+          {
+            id: 'agent-123',
+            user_id: 'user-123',
+            name: 'Leo1',
+            full_name: 'Leo1#Leo1',
+            description: '',
+            visibility: 'PRIVATE',
+            is_default: true,
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+      });
+
+      const whoamiModule = await import('./whoami.js');
+      const handler = whoamiModule.default.handler as Function;
+
+      await handler({ workspace: '/tmp/test-workspace' });
+
+      expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('Leo1#Leo1'));
+      expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('Leo1'));
+    });
+
+    it('should display first agent when no default agent exists', async () => {
+      const mockConfig = {
+        email: 'test@example.com',
+        token: 'test-token',
+        userId: 'user-123',
+        nickname: 'Test',
+        createdAt: '2024-01-01T00:00:00Z',
+      };
+
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(mockConfig));
+      vi.mocked(listAgents).mockResolvedValue({
+        success: true,
+        data: [
+          {
+            id: 'agent-456',
+            user_id: 'user-123',
+            name: 'coding',
+            full_name: 'coding#test',
+            description: '',
+            visibility: 'PRIVATE',
+            is_default: false,
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+      });
+
+      const whoamiModule = await import('./whoami.js');
+      const handler = whoamiModule.default.handler as Function;
+
+      await handler({ workspace: '/tmp/test-workspace' });
+
+      expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('coding#test'));
+    });
+
+    it('should display current agent from config when set', async () => {
+      const mockConfig = {
+        email: 'test@example.com',
+        token: 'test-token',
+        userId: 'user-123',
+        nickname: 'Test',
+        createdAt: '2024-01-01T00:00:00Z',
+        currentAgent: {
+          id: 'agent-789',
+          name: 'switched',
+          full_name: 'switched#test',
+        },
+      };
+
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(mockConfig));
+
+      const whoamiModule = await import('./whoami.js');
+      const handler = whoamiModule.default.handler as Function;
+
+      await handler({ workspace: '/tmp/test-workspace' });
+
+      expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('switched#test'));
+      // Should not call listAgents when currentAgent is set
+      expect(listAgents).not.toHaveBeenCalled();
+    });
+
+    it('should show none selected when no agents exist', async () => {
+      const mockConfig = {
+        email: 'test@example.com',
+        token: 'test-token',
+        userId: 'user-123',
+        nickname: 'Test',
+        createdAt: '2024-01-01T00:00:00Z',
+      };
+
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(mockConfig));
+      vi.mocked(listAgents).mockResolvedValue({
+        success: true,
+        data: [],
+      });
+
+      const whoamiModule = await import('./whoami.js');
+      const handler = whoamiModule.default.handler as Function;
+
+      await handler({ workspace: '/tmp/test-workspace' });
+
+      expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('(none selected)'));
+    });
+
+    it('should show none selected when listAgents API fails', async () => {
+      const mockConfig = {
+        email: 'test@example.com',
+        token: 'test-token',
+        userId: 'user-123',
+        nickname: 'Test',
+        createdAt: '2024-01-01T00:00:00Z',
+      };
+
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue(JSON.stringify(mockConfig));
+      vi.mocked(listAgents).mockRejectedValue(new Error('Network error'));
+
+      const whoamiModule = await import('./whoami.js');
+      const handler = whoamiModule.default.handler as Function;
+
+      await handler({ workspace: '/tmp/test-workspace' });
+
+      expect(UI.println).toHaveBeenCalledWith(expect.stringContaining('(none selected)'));
     });
   });
 

@@ -449,13 +449,113 @@ const friendCommand: CommandModule = {
 };
 
 /**
- * Standalone /friends command - shorthand for /friend list
+ * Standalone /friends command - Composite command showing friends and pending requests
+ * 
+ * Usage: magic-im friends
+ * 
+ * Output format:
+ * Friends:
+ *   - buxiao#buxiao
+ *   - profile#yuanhao
+ * 
+ * Pending Requests:
+ *   - helper#alice
  */
 const friendsCommand: CommandModule<{}, FriendListArgs> = {
   command: 'friends',
-  describe: 'List all your friends (shorthand for /friend list)',
-  builder: friendListCommand.builder,
-  handler: friendListCommand.handler,
+  describe: 'List friends and pending requests',
+  builder: (yargs) =>
+    yargs
+      .option('workspace', {
+        alias: 'w',
+        type: 'string',
+        description: 'Workspace directory path (default: ~/.magic-im/)',
+        default: join(homedir(), '.magic-im'),
+      })
+      .option('agent', {
+        alias: 'a',
+        type: 'string',
+        description: 'Agent ID to list friends for (default: current agent)',
+      }),
+  handler: async (argv) => {
+    try {
+      // Get workspace config
+      const { workspacePath, token, currentAgentId } = await getWorkspaceConfig(argv);
+
+      // Set token for API client
+      setToken(token);
+
+      // Resolve agent ID
+      const agentId = await resolveAgentId(argv.agent, currentAgentId, workspacePath);
+
+      logger.info('Listing friends and requests', { workspace: workspacePath, agentId });
+
+      // Fetch friends and requests in parallel
+      const [friendsResponse, requestsResponse] = await Promise.all([
+        listFriends(agentId),
+        listFriendRequests(agentId),
+      ]);
+
+      // Handle friends response
+      if (!friendsResponse.success || !friendsResponse.data) {
+        const errorMsg = friendsResponse.error
+          ? (typeof friendsResponse.error === 'string' ? friendsResponse.error : friendsResponse.error.message)
+          : 'Failed to list friends';
+        logger.error('List friends failed', { error: errorMsg });
+        process.stderr.write(UI.error(`List friends failed: ${errorMsg}`) + '\n');
+        process.exit(1);
+      }
+
+      // Handle requests response
+      if (!requestsResponse.success || !requestsResponse.data) {
+        const errorMsg = requestsResponse.error
+          ? (typeof requestsResponse.error === 'string' ? requestsResponse.error : requestsResponse.error.message)
+          : 'Failed to list friend requests';
+        logger.error('List friend requests failed', { error: errorMsg });
+        process.stderr.write(UI.error(`List friend requests failed: ${errorMsg}`) + '\n');
+        process.exit(1);
+      }
+
+      const friends: Friend[] = friendsResponse.data;
+      const requests: FriendRequestWithNames[] = requestsResponse.data;
+
+      // Display friends section
+      UI.println('Friends:');
+      if (friends.length === 0) {
+        UI.println('  (none)');
+      } else {
+        for (const friend of friends) {
+          UI.println(`  - ${friend.friend_full_name}`);
+        }
+      }
+
+      // Display pending requests section
+      UI.println('');
+      UI.println('Pending Requests:');
+      if (requests.length === 0) {
+        UI.println('  (none)');
+      } else {
+        for (const request of requests) {
+          const requesterName = request.requester_full_name || 'Unknown';
+          UI.println(`  - ${requesterName}`);
+        }
+      }
+
+      logger.info('Friends and requests listed successfully', { 
+        friendCount: friends.length, 
+        requestCount: requests.length 
+      });
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.error('Friends command failed', {
+        error: msg,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      process.stderr.write(UI.error(`Friends command failed: ${msg}`) + '\n');
+      process.exit(1);
+    }
+  },
 };
 
 export default friendCommand;
