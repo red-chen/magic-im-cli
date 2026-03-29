@@ -1,9 +1,12 @@
 import type { CommandModule } from 'yargs';
 import { apiClient } from '../utils/api.js';
 import { UI, spinner } from '../utils/ui.js';
-import { getAgentId } from '../utils/config.js';
+import { getAgentId, getToken, saveCurrentAgent } from '../utils/config.js';
 import { logger } from '../utils/logger.js';
+import { listAgents } from '../core/api/agent.api.js';
+import { setToken } from '../core/config/config.js';
 import type { Message } from '../types/index.js';
+import type { Agent } from '../core/types/index.js';
 
 interface Conversation {
   id: string;
@@ -17,6 +20,45 @@ interface Conversation {
   other_agent_name: string;
   other_agent_full_name: string;
 }
+
+// ─── Get or fetch agent ID ────────────────────────────────────────────────────
+
+const getOrFetchAgentId = async (): Promise<string | undefined> => {
+  // First try to get from config
+  const configAgentId = getAgentId();
+  if (configAgentId) {
+    return configAgentId;
+  }
+
+  // If not in config, fetch from server and save
+  const token = getToken();
+  if (!token) {
+    return undefined;
+  }
+
+  try {
+    setToken(token);
+    const response = await listAgents();
+    if (response.success && response.data && response.data.length > 0) {
+      // Find default agent or use the first one
+      const defaultAgent = response.data.find((agent: Agent) => agent.is_default);
+      const agentToUse = defaultAgent || response.data[0];
+      
+      // Save to config for future use
+      saveCurrentAgent({
+        id: agentToUse.id,
+        name: agentToUse.name,
+        full_name: agentToUse.full_name,
+      });
+      
+      return agentToUse.id;
+    }
+  } catch (error) {
+    logger.error('Failed to fetch default agent', { error: error instanceof Error ? error.message : String(error) });
+  }
+
+  return undefined;
+};
 
 // ─── List conversations ───────────────────────────────────────────────────────
 
@@ -199,10 +241,10 @@ const conversationCommand: CommandModule<{}, {
       .example('$0 conversation send "hello world" --to yuanhao#yuanhao', 'Send message to agent'),
   handler: async (argv) => {
     try {
-      // Get agent ID from option or config (config reads from workspace config.json)
-      const agentId = argv.agent || getAgentId();
+      // Get agent ID from option or config, or fetch from server
+      const agentId = argv.agent || await getOrFetchAgentId();
       if (!agentId) {
-        const errorMsg = 'Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"';
+        const errorMsg = 'Agent ID required. Please login first or use --agent option';
         logger.error('Conversation command failed: no agent ID');
         process.stderr.write(UI.error(errorMsg) + '\n');
         process.exit(1);
@@ -272,9 +314,9 @@ const conversationsCommand: CommandModule<{}, { agent?: string; limit?: number }
       }),
   handler: async (argv) => {
     try {
-      const agentId = argv.agent || getAgentId();
+      const agentId = argv.agent || await getOrFetchAgentId();
       if (!agentId) {
-        const errorMsg = 'Agent ID required. Use --agent or set default with "magic-im agent use <agent_id>"';
+        const errorMsg = 'Agent ID required. Please login first or use --agent option';
         logger.error('Conversations command failed: no agent ID');
         process.stderr.write(UI.error(errorMsg) + '\n');
         process.exit(1);

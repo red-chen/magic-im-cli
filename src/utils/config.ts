@@ -113,8 +113,27 @@ export const setConfig = (key: keyof Config, value: string): void => {
 };
 
 export const getToken = (): string | undefined => {
+  // First try settings.json
   const config = getConfigInternal();
-  return config.token;
+  if (config.token) {
+    return config.token;
+  }
+  
+  // Then try workspace config.json (where login saves token)
+  const workspaceConfigFile = join(CONFIG_DIR, 'config.json');
+  try {
+    if (existsSync(workspaceConfigFile)) {
+      const data = readFileSync(workspaceConfigFile, 'utf-8');
+      const workspaceConfig = JSON.parse(data);
+      if (workspaceConfig.token) {
+        return workspaceConfig.token;
+      }
+    }
+  } catch (error) {
+    // Ignore read errors
+  }
+  
+  return undefined;
 };
 
 export const setToken = (token: string): void => {
@@ -147,6 +166,25 @@ export const getAgentId = (): string | undefined => {
   }
   
   return undefined;
+};
+
+export const saveCurrentAgent = (agent: { id: string; name: string; full_name: string }): boolean => {
+  const workspaceConfigFile = join(CONFIG_DIR, 'config.json');
+  try {
+    let workspaceConfig: Record<string, unknown> = {};
+    if (existsSync(workspaceConfigFile)) {
+      const data = readFileSync(workspaceConfigFile, 'utf-8');
+      workspaceConfig = JSON.parse(data);
+    }
+    workspaceConfig.currentAgent = agent;
+    writeFileSync(workspaceConfigFile, JSON.stringify(workspaceConfig, null, 2), 'utf-8');
+    logger.info('Current agent saved to config', { agentId: agent.id, fullName: agent.full_name });
+    return true;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to save current agent', { error: msg });
+    return false;
+  }
 };
 
 export const setAgentId = (agentId: string): void => {

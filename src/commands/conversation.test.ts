@@ -11,6 +11,16 @@ vi.mock('../utils/api.js', () => ({
 
 vi.mock('../utils/config.js', () => ({
   getAgentId: vi.fn(),
+  getToken: vi.fn(),
+  saveCurrentAgent: vi.fn(),
+}));
+
+vi.mock('../core/api/agent.api.js', () => ({
+  listAgents: vi.fn(),
+}));
+
+vi.mock('../core/config/config.js', () => ({
+  setToken: vi.fn(),
 }));
 
 vi.mock('../utils/ui.js', () => ({
@@ -33,7 +43,8 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 import { apiClient } from '../utils/api.js';
-import { getAgentId } from '../utils/config.js';
+import { getAgentId, getToken, saveCurrentAgent } from '../utils/config.js';
+import { listAgents } from '../core/api/agent.api.js';
 import { UI } from '../utils/ui.js';
 import { logger } from '../utils/logger.js';
 import conversationCommand, { conversationsCommand } from './conversation.js';
