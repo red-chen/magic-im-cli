@@ -1,0 +1,40 @@
+{
+  "name": "magic-im-cli",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "magic-im": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/red-chen/magic-im-cli.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/red-chen/magic-im-cli/issues"
+  },
+  "homepage": "https://github.com/red-chen/magic-im-cli#readme",
+  "dependencies": {
+    "axios": "^1.14.0",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "conf": "^15.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
